@@ -15,6 +15,8 @@
 *   **🛠️ Scripts**: Python 效率脚本。
     *   `ppt-to-markdown`: 批量转换课件格式
     *   `canvas-migration`: 其它平台数据迁移工具
+    *   `marp_to_multi_formats`: [一键生成备课资源](./marp_to_multi_formats/README.md) (讲义、逐字稿、教案)
+    *   `NBP_watermark_remover`: [牛必配水印去除工具](./NBP_watermark_remover/README_Watermark_Remover.md)
 
 ## 贡献指南
 欢迎各位老师提交 Pull Request 分享您的教学工具！
