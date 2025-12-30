@@ -3,7 +3,7 @@
   "displayName": "Hawk's Styled Markdown Preview",
   "description": "Preview and export Markdown as styled HTML using Hawk's template.",
   "publisher": "hawklee",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
