@@ -1,0 +1,276 @@
+/**
+ * @theme-name: Hawk Reader MReader Default
+ * @theme-author: Gemini (Combined Version)
+ * @description: Combined WeChat styles with Ruby and Alert support.
+ */
+
+:root {
+  /* --- 核心颜色 --- */
+  --primary-color: #017fc0; /* 主题色 */
+  --text-color: #212121; /* 主体文字颜色 */
+  --subtle-text-color: #6c757d; /* 辅助性文字 */
+  --background-color: #fff; /* 默认页面背景色 */
+  --border-color: #e9ecef; /* 边框颜色 */
+
+  /* --- 新增：标题灰色系 --- */
+  --h2-bg-color: #444444; /* H2 背景：深灰色 */
+  --h3-bg-color: #f0f0f0; /* H3 背景：浅灰色 */
+
+  /* --- 代码样式 --- */
+  --code-background: #f8f9fa; /* 代码块背景色 */
+  --code-color: #d63384; /* 行内代码颜色 */
+
+  /* --- 字体 --- */
+  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', 'PingFang SC',
+    'Hiragino Sans GB', 'Noto Sans CJK SC', 'Microsoft YaHei', Arial, sans-serif;
+  --font-family-mono: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  /* --- 间距 --- */
+  --spacing-base: 1rem; /* 基础间距单位 (1rem ≈ 16px) */
+}
+
+body {
+  font-family: var(--font-family-sans);
+  font-size: 16px;
+  line-height: 1.7; /* 增加行高，提升长文可读性 */
+  letter-spacing: 0.03em; /* 微调字间距 */
+  color: var(--text-color);
+  background-color: var(--background-color);
+  padding: 1.25rem; /* 统一页面边距 (Updated to apply all around) */
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased; /* 优化字体渲染 */
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- 标题样式 --- */
+h1, h2, h3, h4, h5 {
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 1.5rem 0 1.25rem; /* 统一标题垂直间距 */
+}
+
+h1 {
+  font-size: 1.6em;
+  text-align: center;
+  padding-bottom: 0.5rem;
+  border-bottom: 3px solid var(--primary-color);
+  margin-top: 0; /* 文章第一个标题不需要上边距 */
+  color: var(--primary-color); /* 使用主题色，强化视觉引领 */
+  margin-bottom: 2rem; /* 加大与下方内容的间距 */
+}
+
+h2 {
+  font-size: 1.4em;
+  text-align: center;
+  color: #fff; /* 白色文字 */
+  background-color: var(--h2-bg-color); /* 深灰色背景 */
+  padding: 0.6rem 1.8rem;
+  border-radius: 10px;
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
+  /* 恢复居中对齐 */
+  display: table;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 2rem; /* 加大与下方内容的间距 */
+}
+
+h3 {
+  font-size: 1.2em;
+  color: var(--text-color); /* 黑色文字 */
+  background-color: var(--h3-bg-color); /* 浅灰色背景 */
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  display: inline-block; /* 使背景贴合文字内容 */
+  margin-bottom: 1.35rem; /* 加大与下方内容的间距 */
+}
+
+h4 {
+  font-size: 1.1em;
+  color: var(--primary-color);
+  font-weight: 700;
+  margin-bottom: 1.2rem; /* 加大与下方内容的间距 */
+}
+
+h5 {
+  font-size: 1em;
+  color: var(--subtle-text-color);
+  font-weight: 600;
+  margin-bottom: 1.1rem; /* 加大与下方内容的间距 */
+}
+
+h6 {
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--text-color);
+  background-color: var(--code-background);
+  padding: 0.8rem 1rem;
+  border-left: 5px solid var(--primary-color);
+  border-radius: 0 6px 6px 0;
+  margin: 1.5rem 0 1.25rem;
+}
+
+/* --- 段落与列表 --- */
+p {
+  margin: 0 0 var(--spacing-base);
+}
+
+ol {
+  padding-left: 2em;
+  margin: 0 0 var(--spacing-base);
+}
+
+ul {
+  padding-left: 1.5em;
+  list-style-type: disc; 
+  margin: 0 0 var(--spacing-base);
+}
+
+li {
+  margin-bottom: 0.5rem;
+  word-break: break-word; 
+}
+
+/* --- 引用与图片 --- */
+blockquote {
+  margin: 1.5rem 0 0.5rem;
+  padding: 0.8rem 1.2rem 0.01rem;
+  border-left: 5px solid var(--primary-color);
+  background-color: var(--code-background);
+  border-radius: 0 8px 8px 0;
+  color: var(--subtle-text-color);
+}
+
+figure {
+  margin: 2rem 0;
+  padding: 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+figcaption {
+  padding: 0.75rem 0;
+  color: var(--subtle-text-color);
+  text-align: center;
+  font-size: 0.9em;
+}
+
+/* --- 其他元素 --- */
+hr {
+  border: none;
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 2.5rem 0;
+}
+
+strong {
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+em {
+  font-style: italic;
+  color: var(--primary-color);
+}
+
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+  border-bottom: 1px solid var(--primary-color);
+  padding-bottom: 2px;
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+a:hover {
+  background-color: var(--primary-color);
+  color: var(--background-color);
+}
+
+/* --- 代码块 --- */
+pre {
+  background-color: var(--code-background);
+  padding: 1.25rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  border: 1px solid var(--border-color);
+  white-space: pre-wrap;    
+  overflow-wrap: break-word; 
+}
+
+code {
+  font-family: var(--font-family-mono);
+  background-color: var(--code-background);
+  color: var(--code-color);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+pre code {
+  background-color: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.footnotes {
+  margin: 2rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.85em;
+  color: var(--subtle-text-color);
+}
+
+/* =========================================
+   ADDITIONAL STYLES (From Integrated Demo)
+   ========================================= */
+
+/* Ruby Pinyin */
+ruby {
+  font-family: "PingFang SC", sans-serif;
+  ruby-align: center;
+}
+rt {
+  font-size: 0.6em;
+  color: #888;
+}
+
+/* GitHub Alerts */
+.markdown-alert {
+  padding: 10px 15px;
+  margin-bottom: 16px;
+  border-left: 4px solid;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.markdown-alert-note {
+  background-color: #f7f7f7;
+  border-left-color: #0969da;
+  color: #333;
+}
+.markdown-alert-tip {
+  background-color: #e6ffed;
+  border-left-color: #2da44e;
+  color: #24292f;
+}
+.markdown-alert-warning {
+  background-color: #fff8c5;
+  border-left-color: #bf8700;
+  color: #24292f;
+}
+.markdown-alert-title {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 14px;
+}

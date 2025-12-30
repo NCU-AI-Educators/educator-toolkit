@@ -17,6 +17,7 @@
     *   `canvas-migration`: 其它平台数据迁移工具
     *   `marp_to_multi_formats`: [一键生成备课资源](./marp_to_multi_formats/README.md) (讲义、逐字稿、教案)
     *   `NBP_watermark_remover`: [牛必配水印去除工具](./NBP_watermark_remover/README_Watermark_Remover.md)
+    *   `MReader`: [Markdown 微信风格阅读器](./MReader/README_CN.md) (生成美观的独立 HTML 阅读页，支持自动滚动)
 
 ## 贡献指南
 欢迎各位老师提交 Pull Request 分享您的教学工具！
