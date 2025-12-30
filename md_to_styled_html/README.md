@@ -19,13 +19,13 @@ Run the python script provided in this directory:
 
 ```bash
 # Basic usage (Uses default.css)
-python generate_reader.py /path/to/your/article.md
+python md_to_styled_html.py /path/to/your/article.md
 
 # Specify Output path
-python generate_reader.py /path/to/article.md -o /path/to/site/article.html
+python md_to_styled_html.py /path/to/article.md -o /path/to/site/article.html
 
 # Use Custom CSS
-python generate_reader.py /path/to/article.md /path/to/custom_style.css
+python md_to_styled_html.py /path/to/article.md /path/to/custom_style.css
 ```
 
 ### 2. Integrate into Webpages
@@ -47,6 +47,6 @@ The generated HTML is self-contained. To integrate it into another webpage (like
 
 ## 🛠 File Structure
 
-*   `generate_reader.py`: The generator script.
+*   `md_to_styled_html.py`: The generator script.
 *   `template.html`: The HTML skeleton.
 *   `default.css`: The built-in style (High-quality reading style).

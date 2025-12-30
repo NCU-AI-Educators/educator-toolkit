@@ -19,13 +19,13 @@
 
 ```bash
 # 基本用法 (使用默认样式 default.css)
-python generate_reader.py /path/to/your/article.md
+python md_to_styled_html.py /path/to/your/article.md
 
 # 指定输出路径
-python generate_reader.py /path/to/article.md -o /path/to/site/article.html
+python md_to_styled_html.py /path/to/article.md -o /path/to/site/article.html
 
 # 使用自定义 CSS 样式
-python generate_reader.py /path/to/article.md /path/to/custom_style.css
+python md_to_styled_html.py /path/to/article.md /path/to/custom_style.css
 ```
 
 ### 2. 集成到网页中
@@ -47,6 +47,6 @@ python generate_reader.py /path/to/article.md /path/to/custom_style.css
 
 ## 🛠 文件结构
 
-*   `generate_reader.py`: 核心转换脚本。
+*   `md_to_styled_html.py`: 核心转换脚本。
 *   `template.html`: HTML 模板骨架。
 *   `default.css`: 内置样式文件（提供高阅读体验的默认样式）。
