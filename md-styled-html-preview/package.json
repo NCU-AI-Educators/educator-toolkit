@@ -1,0 +1,57 @@
+{
+  "name": "md-styled-html-preview",
+  "displayName": "Hawk's Styled Markdown Preview",
+  "description": "Preview and export Markdown as styled HTML using Hawk's template.",
+  "publisher": "hawklee",
+  "version": "0.0.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NCU-AI-Educators/educator-toolkit.git",
+    "directory": "md-styled-html-preview"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mdStyledHtml.preview",
+        "title": "Hawk: Preview Styled HTML",
+        "icon": "logo.png"
+      },
+      {
+        "command": "mdStyledHtml.export",
+        "title": "Hawk: Export to HTML"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mdStyledHtml.preview",
+          "group": "navigation",
+          "when": "resourceLangId == markdown"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "18.x",
+    "typescript": "^5.1.3",
+    "eslint": "^8.41.0"
+  }
+}
