@@ -2,8 +2,9 @@
   "name": "md-styled-html-preview",
   "displayName": "Hawk's Styled Markdown Preview",
   "description": "Preview and export Markdown as styled HTML using Hawk's template.",
+  "icon": "logo.png",
   "publisher": "hawklee",
-  "version": "0.0.2",
+  "version": "0.0.9",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -16,7 +17,11 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:mdStyledHtml.preview",
+    "onCommand:mdStyledHtml.export",
+    "onLanguage:markdown"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -49,9 +54,22 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.80.0",
     "@types/node": "18.x",
-    "typescript": "^5.1.3",
-    "eslint": "^8.41.0"
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
+    "eslint": "^8.41.0",
+    "typescript": "^5.1.3"
+  },
+  "dependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/markdown-it-container": "^2.0.11",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.27",
+    "markdown-it": "^14.1.0",
+    "markdown-it-container": "^4.0.0",
+    "markdown-it-github-alerts": "^1.0.0",
+    "markdown-it-ruby": "^1.1.2",
+    "markdown-it-texmath": "^1.0.0"
   }
 }

@@ -4,14 +4,23 @@ import * as path from 'path';
 import { StyledHtmlPanel } from './previewPanel';
 
 export function activate(context: vscode.ExtensionContext) {
+    console.log('Hawk Styled Preview: Extension Activated');
 
 	// 1. Command: Preview
-	let previewDisposable = vscode.commands.registerCommand('mdStyledHtml.preview', () => {
-		StyledHtmlPanel.createOrShow(context.extensionUri);
+	let previewDisposable = vscode.commands.registerCommand('mdStyledHtml.preview', async () => {
+        console.log('Hawk Styled Preview: Command Triggered');
+        try {
+		    await StyledHtmlPanel.createOrShow(context.extensionUri);
+            console.log('Hawk Styled Preview: Panel Created/Shown');
+        } catch (e) {
+            console.error('Hawk Styled Preview: Error showing panel', e);
+            vscode.window.showErrorMessage('Hawk Styled Preview Error: ' + e);
+        }
 	});
 
 	// 2. Command: Export
 	let exportDisposable = vscode.commands.registerCommand('mdStyledHtml.export', async () => {
+        console.log('Hawk Styled Preview: Export Command Triggered');
 		let editor = vscode.window.activeTextEditor;
 		let document: vscode.TextDocument | undefined;
 
@@ -30,11 +39,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 		if (document.languageId !== 'markdown') {
 			vscode.window.showWarningMessage('Active file is not a Markdown file');
-			// We can proceed or stop. Let's warn but proceed just in case user wants to force it.
 		}
 
 		const markdownContent = document.getText();
-		const htmlContent = StyledHtmlPanel.generateHtml(markdownContent, context.extensionUri.fsPath);
+        console.log('Hawk Styled Preview: Generating HTML for export...');
+		
+		// generateHtml is now async
+		const htmlContent = await StyledHtmlPanel.generateHtml(markdownContent, context.extensionUri.fsPath);
+        console.log('Hawk Styled Preview: HTML Generated');
 
 		// Propose a filename
 		const originalUri = document.uri;
