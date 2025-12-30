@@ -1,6 +1,6 @@
-# Markdown to Reader Converter
+# Markdown to Styled HTML
 
-**md_to_reader** 是一个轻量级转换工具，旨在将 Markdown 文件转换为**独立、美观且具有高阅读体验**的 HTML 页面。它专注于提供舒适的排版和沉浸式的阅读环境，并支持 GitHub Alerts 和 Ruby 拼音标注等高级特性。
+**md_to_styled_html** 是一个轻量级转换工具，旨在将 Markdown 文件转换为**独立、美观且具有高阅读体验**的 HTML 页面。它专注于提供舒适的排版和沉浸式的阅读环境，并支持 GitHub Alerts 和 Ruby 拼音标注等高级特性。
 
 ## 📂 功能特性
 
