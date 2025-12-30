@@ -6,6 +6,9 @@
 **Educator Toolkit** 是为 "AI 赋能软件开发" 课程配套的教学工具集。它包含了一系列开箱即用的 Prompt 模板、自动化脚本和 Workflow，旨在赋能教师高效备课、科研与教学。
 
 ## 资源目录
+*   **🧩 VS Code Extensions**:
+    *   **[Hawk's Styled Markdown Preview](https://marketplace.visualstudio.com/items?itemName=hawklee.md-styled-html-preview)**: 🦅 专为教育者设计的 Markdown 预览插件。支持学术风格排版、MathJax 公式、拼音标注、GitHub 风格提示块以及**提词器模式**。支持一键导出为独立的 HTML 文件。
+        [![Version](https://img.shields.io/visual-studio-marketplace/v/hawklee.md-styled-html-preview?style=flat-square&label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=hawklee.md-styled-html-preview)
 *   **🤖 Prompts**: 精选的系统级提示词库 (System Prompts)。
     *   `role-act-as-reviewer`: 模拟严厉的审稿人
     *   `role-socratic-tutor`: 苏格拉底式提问教学助手
