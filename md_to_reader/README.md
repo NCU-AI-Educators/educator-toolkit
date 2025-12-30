@@ -1,12 +1,12 @@
-# Hawk MReader Component
+# Markdown to Reader Converter
 
-**MReader** (Markdown Reader) is a lightweight tool to convert Markdown files into standalone, beautiful HTML readers. It is designed to mimic the "WeChat Official Account" aesthetic and supports advanced features like GitHub Alerts and Ruby Pinyin.
+**md_to_reader** is a lightweight tool to convert Markdown files into standalone, beautiful, and high-quality HTML reading pages. It focuses on providing comfortable typography and an immersive reading environment, supporting advanced features like GitHub Alerts and Ruby Pinyin.
 
 ## 📂 Features
 
 *   **Standalone**: Generates a single `.html` file containing all CSS and Scripts. No server required.
-*   **WeChat Style**: Built-in default styling that mimics WeChat articles.
-*   **Spacebar Auto-Scroll**: Teleprompter mode for immersive reading/presentation.
+*   **Excellent Reading Experience**: Carefully tuned typography for a clear and comfortable reading experience.
+*   **Spacebar Auto-Scroll**: Teleprompter mode for immersive reading or presentations.
 *   **Advanced Markdown**: 
     *   GitHub Alerts: `[!NOTE]`, `[!TIP]`, `[!WARNING]`
     *   Ruby Pinyin: `[汉]{py}` -> `<ruby>汉<rt>py</rt></ruby>`
@@ -19,13 +19,13 @@ Run the python script provided in this directory:
 
 ```bash
 # Basic usage (Uses default.css)
-python mreader.py /path/to/your/article.md
+python generate_reader.py /path/to/your/article.md
 
 # Specify Output path
-python mreader.py /path/to/article.md -o /path/to/site/article.html
+python generate_reader.py /path/to/article.md -o /path/to/site/article.html
 
 # Use Custom CSS
-python mreader.py /path/to/article.md /path/to/custom_style.css
+python generate_reader.py /path/to/article.md /path/to/custom_style.css
 ```
 
 ### 2. Integrate into Webpages
@@ -40,13 +40,13 @@ The generated HTML is self-contained. To integrate it into another webpage (like
     <iframe 
         src="./path/to/generated_article.html" 
         style="width: 100%; height: 100%; border: none;"
-        title="Hawk Reader"
+        title="Reader View"
     ></iframe>
 </div>
 ```
 
 ## 🛠 File Structure
 
-*   `mreader.py`: The generator script.
+*   `generate_reader.py`: The generator script.
 *   `template.html`: The HTML skeleton.
-*   `default.css`: The built-in style (WeChat aesthetic).
+*   `default.css`: The built-in style (High-quality reading style).
