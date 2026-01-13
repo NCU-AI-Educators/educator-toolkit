@@ -4,7 +4,7 @@
   "description": "Preview and export Markdown as styled HTML using Hawk's template.",
   "icon": "logo.png",
   "publisher": "hawklee",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
