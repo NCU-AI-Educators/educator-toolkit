@@ -53,5 +53,15 @@ def hello_hawk():
 在预览窗口中点击一下，然后按 **`空格键`**。
 页面应该会自动缓慢向下滚动，再次按 **`空格键`** 停止。
 
+## 🖼️ 7. 图片测试 (Image Test)
+
+测试本地图片加载功能（需确保 `logo.png` 在同一目录下）。
+
+**相对路径引用：**
+![Logo (Relative)](./logo.png)
+
+**绝对路径引用：**
+![Logo (Absolute)](/Users/l.ylive.cn/Library/CloudStorage/OneDrive-个人/NCU-AI-Educators/educator-toolkit/md-styled-html-preview/logo.png)
+
 ---
 感谢使用 **Hawk's Styled Markdown Preview**！

@@ -159,6 +159,30 @@ export class StyledHtmlPanel {
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.document.languageId !== 'markdown') return;
         this._currentDocument = editor.document;
+
+        // Update localResourceRoots to allow loading local images
+        const localResourceRoots = [
+            vscode.Uri.file(path.join(this._extensionUri.fsPath, 'media'))
+        ];
+
+        if (vscode.workspace.workspaceFolders) {
+            localResourceRoots.push(...vscode.workspace.workspaceFolders.map(f => f.uri));
+        }
+
+        if (this._currentDocument) {
+            localResourceRoots.push(vscode.Uri.file(path.dirname(this._currentDocument.fileName)));
+        }
+
+        // Add system root to allow absolute paths from anywhere (useful for images outside workspace)
+        // On Windows this might be 'C:\', on macOS/Linux it is '/'
+        const rootPath = process.platform === 'win32' ? 'C:\\' : '/';
+        localResourceRoots.push(vscode.Uri.file(rootPath));
+
+        this._panel.webview.options = {
+            enableScripts: true,
+            localResourceRoots: localResourceRoots
+        };
+
         const markdownContent = editor.document.getText();
         this._panel.webview.html = await this._getHtmlForWebview(markdownContent);
     }
@@ -227,15 +251,37 @@ pre.hljs, .hljs { display: block; overflow-x: auto; padding: 1em !important; col
         if (this._currentDocument) {
             const documentDir = path.dirname(this._currentDocument.fileName);
             html = html.replace(/<img([^>]+)src=["']([^"']+)["']([^>]*)>/g, (match, before, url, after) => {
-                 const isAbsolute = /^(?:[a-z]+:)?\/\//i.test(url) || /^data:/.test(url) || /^file:/.test(url);
-                 if (!isAbsolute) {
-                     try {
-                        const absolutePath = path.join(documentDir, url);
-                        const webviewUri = this._panel.webview.asWebviewUri(vscode.Uri.file(absolutePath));
-                        return `<img${before}src="${webviewUri}"${after}>`;
-                     } catch (e) { return match; }
-                 }
-                 return match;
+                // Decode URL to handle spaces and special characters (e.g. Chinese paths)
+                try {
+                    url = decodeURIComponent(url);
+                } catch (e) {
+                    // Ignore decoding errors
+                }
+
+                // Skip network URLs and Data URIs
+                if (/^(?:https?:|data:)/i.test(url)) {
+                    return match;
+                }
+
+                try {
+                    let fsPath = url;
+                    // Handle file:// protocol if present
+                    if (url.startsWith('file://')) {
+                        fsPath = vscode.Uri.parse(url).fsPath;
+                    }
+
+                    let absolutePath: string;
+                    if (path.isAbsolute(fsPath)) {
+                        absolutePath = fsPath;
+                    } else {
+                        absolutePath = path.join(documentDir, fsPath);
+                    }
+
+                    const webviewUri = this._panel.webview.asWebviewUri(vscode.Uri.file(absolutePath));
+                    return `<img${before}src="${webviewUri}"${after}>`;
+                } catch (e) {
+                    return match;
+                }
             });
         }
         const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${this._panel.webview.cspSource} https:; script-src 'unsafe-inline' ${this._panel.webview.cspSource}; img-src data: https: ${this._panel.webview.cspSource}; font-src ${this._panel.webview.cspSource} https:;">`;

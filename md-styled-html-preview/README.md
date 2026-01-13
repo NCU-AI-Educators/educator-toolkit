@@ -10,6 +10,7 @@ Preview and export your Markdown files using a beautiful, academic-styled templa
 
 - **🎨 Beautiful Styling**: Renders Markdown with a clean, modern, academic-style CSS theme.
 - **🖼️ Local Image Support**: Displays relative image paths correctly using Markdown syntax `![alt](path)` or HTML `<img>` tags.
+- **📂 Absolute & Special Path Support**: Renders images from anywhere on your disk (absolute paths) and handles paths with spaces or non-ASCII characters (e.g., Chinese) seamlessly.
 - **⚗️ Scientific Math Support**: Built-in MathJax support for high-quality mathematical notation (Inline `$E=mc^2$` & Block `$$...$$`).
 - **🧧 Pinyin/Ruby Support**: Easily add phonetic guides using `[Text]{pinyin}` syntax.
 - **📢 GitHub-Style Alerts**: Supports `[!NOTE]`, `[!TIP]`, `[!WARNING]` blockquotes with color-coded styling.
@@ -36,6 +37,7 @@ Preview and export your Markdown files using a beautiful, academic-styled templa
 
 - **🎨 精美样式**：内置现代、简洁的学术风格 CSS 主题，让文档瞬间专业起来。
 - **🖼️ 本地图片支持**：完美支持 Markdown 语法 (`![alt](path)`) 和 HTML 标签 (`<img src="...">`) 的相对路径本地图片渲染。
+- **📂 全路径与特殊字符支持**：支持加载磁盘任意位置的图片（绝对路径），并自动处理包含空格或中文字符的文件路径。
 - **⚗️ 数学公式**：完美支持 LaTeX 数学公式渲染（MathJax），支持行内 `$E=mc^2$` 和块级 `$$...$$` 公式。
 - **🧧 拼音/注音支持**：支持 `[汉字]{han zi}` 格式的注音语法，适合制作语文或语言教学材料。
 - **📢 提示块 (Alerts)**：支持 GitHub 风格的 `[!NOTE]`, `[!TIP]`, `[!WARNING]` 引用块，自动应用醒目的颜色。
