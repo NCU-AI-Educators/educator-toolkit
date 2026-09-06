@@ -194,12 +194,12 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
                 target.setAttribute('fill', 'rgb(71, 85, 105)');
               }
             } else {
-              // 架构图大卡片节点
+              // 架构图组件节点（标准尺寸通常为 120px~150px）
               if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
-                newSize = Math.max(newSize, 17.0);
+                newSize = 13.5;
                 weight = '700';
               } else if (orig.getAttribute('data-detail') === 'context') {
-                newSize = Math.max(newSize, 13.0);
+                newSize = 9.5;
                 weight = '600';
                 if (textFill.includes('100, 116, 139') || textFill.includes('148, 163, 184')) {
                   target.setAttribute('fill', 'rgb(51, 65, 85)');
@@ -219,26 +219,28 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
             newSize = Math.min(Math.max(newSize, 9.0), 9.5);
             weight = '500';
           } else if (orig.getAttribute('data-detail') === 'context') {
-            newSize = Math.max(newSize, 13.0);
+            newSize = 9.5;
             weight = '600';
           } else if (orig.getAttribute('data-detail') === 'fine') {
-            newSize = Math.max(newSize, 11.5);
-            weight = '700';
+            newSize = 8.5;
+            weight = '600';
           }
 
           target.setAttribute('font-size', newSize.toString());
           target.setAttribute('font-weight', weight);
 
-          // 溢出防护拦截：对于卡片内文字，若测得渲染宽度仍超过可用宽度，动态缩减字号确保绝不溢出
+          // 核心安全网：卡片内文字动态自适应防溢出守护 (Auto-Fit Guard)
+          // 精确测量文字实际渲染宽度，确保文字两侧永远留出至少 12px 优雅呼吸内边距
           if (participantG) {
             try {
               var cardRect = participantG.querySelector('rect');
-              var cardW = cardRect ? parseFloat(cardRect.getAttribute('width') || '86') : 86;
+              var cardW = cardRect ? parseFloat(cardRect.getAttribute('width') || '120') : 120;
+              var maxAllowedWidth = cardW - 24; // 两侧各留出至少 12px 呼吸留白
               var tBbox = orig.getBBox();
-              if (tBbox && tBbox.width > cardW - 8 && cardW > 20) {
-                var scale = (cardW - 10) / tBbox.width;
+              if (tBbox && tBbox.width > maxAllowedWidth && cardW > 30) {
+                var scale = maxAllowedWidth / tBbox.width;
                 if (scale < 1.0) {
-                  var adjustedSize = Math.max(7.0, Math.floor(newSize * scale * 10) / 10);
+                  var adjustedSize = Math.max(7.5, Math.floor(newSize * scale * 10) / 10);
                   target.setAttribute('font-size', adjustedSize.toString());
                 }
               }
