@@ -950,9 +950,10 @@ def convert_ssot_to_typst(md_path: str) -> str:
   above: 8pt,
   below: 10pt
 )[
-  #text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("{stroke_color}"))[{title_line}]
-  #v(0.2em)
   #set par(first-line-indent: (amount: 0em, all: true), leading: 0.65em)
+  #block(width: 100%, below: 0.35em)[
+    #text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("{stroke_color}"))[{title_line}]
+  ]
   #text(size: 9.5pt)[{body_joined}]
 ]
 """)
@@ -1247,7 +1248,10 @@ def main():
     print(f"✍️  [SSOT-to-Typst] 已生成 Typst 源码: {out_typ}")
 
     print(f"⚡ [SSOT-to-Typst] 正在调用 Typst 0.15 编译矢量 PDF ...")
-    root_dir = os.getcwd()
+    try:
+        root_dir = os.path.commonpath([os.path.abspath(out_typ), os.getcwd()])
+    except Exception:
+        root_dir = os.path.dirname(os.path.abspath(out_typ))
     cmd = f"typst compile --root \"{root_dir}\" \"{out_typ}\" \"{out_pdf}\""
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
