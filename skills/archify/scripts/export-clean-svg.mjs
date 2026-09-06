@@ -76,11 +76,17 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
             fill = 'rgba(59, 130, 246, 0.14)';
           } else if (orig.closest && orig.closest('g[data-edge-id]') && orig.classList.contains('c-mask')) {
             var edgeG = orig.closest('g[data-edge-id]');
+            var siblingText = edgeG ? edgeG.querySelector('text') : null;
+            var textCs = siblingText ? window.getComputedStyle(siblingText) : null;
+            var textFill = textCs ? (textCs.fill || '') : '';
             var edgeId = edgeG ? edgeG.getAttribute('data-edge-id') : '';
-            if (edgeId === 'dgp-to-map' || edgeId === 'f-fuse-gate' || edgeId === 'f-gate-store') {
+
+            if (textFill.includes('5, 150, 105') || textFill.includes('16, 185, 129') || edgeId === 'e_iou_coco' || edgeId === 'dgp-to-map' || edgeId === 'f-fuse-gate' || edgeId === 'f-gate-store') {
               fill = 'rgba(16, 185, 129, 0.14)';
-            } else if (edgeId === 'map-to-dgp') {
+            } else if (textFill.includes('124, 58, 237') || textFill.includes('167, 139, 250') || edgeId === 'e_iou_quarantine' || edgeId === 'map-to-dgp') {
               fill = 'rgba(124, 58, 237, 0.14)';
+            } else if (textFill.includes('225, 29, 72') || textFill.includes('244, 63, 94')) {
+              fill = 'rgba(244, 63, 94, 0.14)';
             } else {
               fill = 'rgba(148, 163, 184, 0.16)';
             }
@@ -105,34 +111,45 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
             strokeWidth = '1px';
           } else if (orig.closest && orig.closest('g[data-edge-id]') && orig.classList.contains('c-mask')) {
             var edgeG = orig.closest('g[data-edge-id]');
+            var siblingText = edgeG ? edgeG.querySelector('text') : null;
+            var textCs = siblingText ? window.getComputedStyle(siblingText) : null;
+            var textFill = textCs ? (textCs.fill || '') : '';
             var edgeId = edgeG ? edgeG.getAttribute('data-edge-id') : '';
-            if (edgeId === 'dgp-to-map' || edgeId === 'f-fuse-gate' || edgeId === 'f-gate-store') {
+
+            if (textFill.includes('5, 150, 105') || textFill.includes('16, 185, 129') || edgeId === 'e_iou_coco' || edgeId === 'dgp-to-map' || edgeId === 'f-fuse-gate' || edgeId === 'f-gate-store') {
               stroke = 'rgba(5, 150, 105, 0.5)';
-            } else if (edgeId === 'map-to-dgp') {
+            } else if (textFill.includes('124, 58, 237') || textFill.includes('167, 139, 250') || edgeId === 'e_iou_quarantine' || edgeId === 'map-to-dgp') {
               stroke = 'rgba(124, 58, 237, 0.5)';
+            } else if (textFill.includes('225, 29, 72') || textFill.includes('244, 63, 94')) {
+              stroke = 'rgba(225, 29, 72, 0.5)';
             } else {
               stroke = 'rgba(100, 116, 139, 0.5)';
             }
             strokeWidth = '1px';
 
-            // 连线标签药丸框自适应：根据真实文字测量宽度，动态保证两侧各有至少 8px 舒适呼吸内边距并保持居中
+            // 连线标签药丸框自适应：根据真实文字测量宽度，动态保证微距呼吸留白并保持居中
             try {
-              var siblingText = edgeG ? edgeG.querySelector('text') : null;
               if (siblingText) {
                 var tb = siblingText.getBBox();
                 if (tb && tb.width > 0) {
-                  var minPillW = Math.ceil(tb.width + 16);
+                  var minPillW = Math.ceil(tb.width + 8);
                   var curW = parseFloat(orig.getAttribute('width') || '0');
                   var newW = Math.max(curW, minPillW);
                   var textCenterX = tb.x + tb.width / 2;
+
+                  // 边界安全避让保护：确保 e_iou_coco 不与前序卡片右侧边框 (1146) 发生 1px 的重叠
+                  if (edgeId === 'e_iou_coco' && (textCenterX - newW / 2) < 1148) {
+                    textCenterX = 1148 + newW / 2;
+                  }
+
                   target.setAttribute('width', newW.toString());
                   target.setAttribute('x', (textCenterX - newW / 2).toString());
 
-                  var minPillH = Math.max(parseFloat(orig.getAttribute('height') || '24'), 24);
+                  var minPillH = 18;
                   target.setAttribute('height', minPillH.toString());
                   var textCenterY = tb.y + tb.height / 2;
                   target.setAttribute('y', (textCenterY - minPillH / 2).toString());
-                  target.setAttribute('rx', '5');
+                  target.setAttribute('rx', '4');
                 }
               }
             } catch (e) {}
@@ -190,7 +207,7 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
             newSize = Math.max(curSize, 17.5);
             weight = '800';
             target.setAttribute('fill', 'rgb(180, 83, 9)');
-          } else if ((/^[0-9]{2}\s*\//.test(textContent) && !orig.closest('[data-legend]')) || orig.classList.contains('t-dim')) {
+          } else if ((new RegExp('^[0-9]{2}[ ]*[/]').test(textContent) && !orig.closest('[data-legend]')) || orig.classList.contains('t-dim')) {
             // 泳道/分区大标题 (如 01 / 规则轨)
             newSize = Math.max(curSize, 17.5);
             weight = '800';
@@ -199,6 +216,12 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
             // 连线上的消息标签/药丸文字：基于节点间距与字符当量的几何自适应黄金字号 (9.5px)
             newSize = 9.5;
             weight = '600';
+            var edgeG = orig.closest('g[data-edge-id]');
+            var edgeId = edgeG ? edgeG.getAttribute('data-edge-id') : '';
+            if (edgeId === 'e_iou_coco') {
+              // 与药丸矩形右移微调保持绝对同心 (中心点 1179.4)
+              target.setAttribute('x', '1179.4');
+            }
             if (textFill.includes('100, 116, 139') || textFill.includes('148, 163, 184') || !textFill || textFill === 'none') {
               target.setAttribute('fill', '#0f172a');
             }
@@ -310,32 +333,7 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
         }
       });
 
-      // 1.3 连线药丸标签背景遮罩动态几何贴合与精致微边框
-      Array.from(clone.querySelectorAll('g[data-edge-id]')).forEach(function(edgeG) {
-        var mask = edgeG.querySelector('rect.c-mask');
-        var text = edgeG.querySelector('text');
-        if (!mask) return;
-        if (!mask.getAttribute('stroke') || mask.getAttribute('stroke') === 'none') {
-          mask.setAttribute('stroke', 'rgb(203, 213, 225)');
-          mask.setAttribute('stroke-width', '1px');
-        }
-        if (text) {
-          try {
-            var tB = text.getBBox();
-            if (tB && tB.width > 0) {
-              var mW = Math.round((tB.width + 10) * 10) / 10;
-              var mH = 17;
-              var tx = parseFloat(text.getAttribute('x') || '0');
-              var ty = parseFloat(text.getAttribute('y') || '0');
-              mask.setAttribute('width', String(mW));
-              mask.setAttribute('height', String(mH));
-              mask.setAttribute('x', String(Math.round((tx - mW / 2) * 10) / 10));
-              mask.setAttribute('y', String(Math.round((ty - 11.5) * 10) / 10));
-              mask.setAttribute('rx', '3.5');
-            }
-          } catch (e) {}
-        }
-      });
+
       // 1.4 图例文字排版规范保护：确保图例项字号统一且不溢出
       Array.from(clone.querySelectorAll('[data-legend] text')).forEach(function(t) {
         if (!t.textContent.includes('图例')) {

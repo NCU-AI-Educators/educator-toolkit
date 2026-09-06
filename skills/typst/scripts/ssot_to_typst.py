@@ -996,12 +996,26 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 
                 title_line = ""
                 content_lines = []
+                raw_c_lines = c_body_lines
                 if c_body_lines and c_body_lines[0].startswith("**") and c_body_lines[0].endswith("**"):
                     title_line = c_body_lines[0][2:-2].strip()
-                    content_lines = [format_inline_markdown(l) for l in c_body_lines[1:] if l]
+                    raw_c_lines = c_body_lines[1:]
                 else:
                     title_line = default_title
-                    content_lines = [format_inline_markdown(l) for l in c_body_lines if l]
+                
+                for l in raw_c_lines:
+                    l_strip = l.strip()
+                    if not l_strip:
+                        continue
+                    if re.match(r'^[\*\-]\s+', l_strip):
+                        item_body = re.sub(r'^[\*\-]\s+', '', l_strip)
+                        content_lines.append(f"- {format_inline_markdown(item_body)}")
+                    elif re.match(r'^\d+\.\s+', l_strip):
+                        m = re.match(r'^\d+\.\s+', l_strip)
+                        item_body = l_strip[len(m.group(0)):].strip()
+                        content_lines.append(f"+ {format_inline_markdown(item_body)}")
+                    else:
+                        content_lines.append(format_inline_markdown(l_strip))
                 
                 body_joined = "\n\n".join(content_lines)
                 typ_lines.append(f"""
@@ -1015,6 +1029,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   below: 10pt
 )[
   #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
+  #set list(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
+  #set enum(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
   #text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("{stroke_color}"))[{title_line}]
   #v(3pt)
   #text(size: 9.5pt)[{body_joined}]
@@ -1023,7 +1039,20 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 continue
 
             # 普通引用块
-            formatted_quotes = [format_inline_markdown(q) for q in curr_quote]
+            formatted_quotes = []
+            for q in curr_quote:
+                q_strip = q.strip()
+                if not q_strip:
+                    continue
+                if re.match(r'^[\*\-]\s+', q_strip):
+                    item_body = re.sub(r'^[\*\-]\s+', '', q_strip)
+                    formatted_quotes.append(f"- {format_inline_markdown(item_body)}")
+                elif re.match(r'^\d+\.\s+', q_strip):
+                    m = re.match(r'^\d+\.\s+', q_strip)
+                    item_body = q_strip[len(m.group(0)):].strip()
+                    formatted_quotes.append(f"+ {format_inline_markdown(item_body)}")
+                else:
+                    formatted_quotes.append(format_inline_markdown(q_strip))
             joined_quote = "\n\n".join(formatted_quotes)
             if quote_indent >= 2:
                 typ_lines.append(f"""
@@ -1038,6 +1067,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     below: 0.8em
   )[
     #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
+    #set list(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
+    #set enum(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
     {joined_quote}
   ]
 ]
@@ -1054,6 +1085,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   below: 10pt
 )[
   #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
+  #set list(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
+  #set enum(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
   {joined_quote}
 ]
 """)
@@ -1223,6 +1256,16 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         if img_match:
             img_caption = img_match.group(1).strip()
             img_path = img_match.group(2).strip()
+
+            # 智能消费紧随其后的斜体/纯文本图题注 (如 *图9-1 ...* 或 _图9-1 ..._)，防止题注双重打印
+            if i + 1 < len(clean_lines):
+                next_raw = clean_lines[i + 1].strip()
+                if (next_raw.startswith("*") and next_raw.endswith("*") and len(next_raw) > 2) or \
+                   (next_raw.startswith("_") and next_raw.endswith("_") and len(next_raw) > 2):
+                    next_caption = next_raw[1:-1].strip()
+                    if not img_caption or (img_caption in next_caption) or (next_caption in img_caption) or ("图" in next_caption or "Fig" in next_caption):
+                        img_caption = next_caption
+                        i += 1
 
             caption_block = ""
             if img_caption:
