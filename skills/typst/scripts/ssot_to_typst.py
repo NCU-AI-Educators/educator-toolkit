@@ -341,12 +341,13 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
 
     typ_table = [
         "#align(center)[#block(width: 100%)[",
+        "  #show table.cell: set par(justify: false, first-line-indent: (amount: 0em, all: true))",
         f"  #table(",
         f"    columns: {col_spec},",
         "    fill: (col, row) => if row == 0 { rgb(\"#f1f5f9\") } else { none },",
         stroke_code,
-        "    inset: (x: 7pt, y: 7pt),",
-        "    align: (col, row) => if row == 0 { center + horizon } else { left + horizon },"
+        "    inset: (x: 7pt, y: 5pt),",
+        "    align: (col, row) => if row == 0 { center + horizon } else { left + horizon },",
     ]
 
     for row_idx, row in enumerate(content_rows):
