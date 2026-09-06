@@ -416,11 +416,12 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     formatted_author = format_org_cell(metadata['author'])
     formatted_inst = format_org_cell(metadata['institution']).replace("@", '#"@"')
 
-    # 2. 构建调优版双模 Typst 模板头
+    # 2. 构建出版级 Typst 模板头
     typ_lines = []
     if mode == "long":
+        # 长图模式：100% 遵循当前出版级排版规范，仅采用连续无缝版心 (height: auto) 并去除页眉页脚
         typ_lines.append(f"""// ==============================================================================
-// NCU Smart Platform - 全场景技术文档生产线 (自适应无缝长图模式)
+// NCU Smart Platform - 全场景技术文档出版生产线 (自适应无缝长图模式)
 // 编译核心: Typst 0.15+ | 算力画图: 4090 Kroki 引擎
 // 研制机构: {metadata['institution']}
 // ==============================================================================
@@ -428,35 +429,13 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 #set page(
   width: 210mm,
   height: auto,
-  margin: (x: 20mm, y: 18mm),
+  margin: (x: 20mm, top: 22mm, bottom: 22mm),
   fill: rgb("#ffffff"),
   header: none,
   footer: none,
-)
-
-#set text(
-  font: ("PingFang SC", "Heiti SC", "Songti SC"),
-  size: 10pt,
-  lang: "zh"
-)
-
-// 中文粗体规范
-#show strong: set text(font: ("Times New Roman", "PingFang SC", "Heiti SC", "STHeiti", "SimHei"), weight: "bold", fill: rgb("#0f172a"))
-
-// 自适应长图排版：自然阅读左对齐无两端拉伸
-#set par(
-  justify: false,
-  leading: 0.82em,
-  spacing: 0.85em,
-  first-line-indent: (amount: 0em, all: true)
-)
-
-// 列表与正文对齐规范
-#set list(indent: 0.5em, body-indent: 0.5em, spacing: 0.75em)
-#set enum(indent: 0.5em, body-indent: 0.5em, spacing: 0.75em)
-#show list: set block(above: 0.75em, below: 0.75em)
-#show enum: set block(above: 0.75em, below: 0.75em)""")
+)""")
     else:
+        # A4 双面印刷出版模式：对称装订边距与奇偶页动态页眉页脚
         typ_lines.append(f"""// ==============================================================================
 // NCU Smart Platform - A4 出版级技术规范双面排版系统 (SSOT 调优版)
 // 编译核心: Typst 0.15+ | 算力画图: 4090 Kroki 引擎
@@ -510,8 +489,10 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
       )
     }}
   }}
-)
+)""")
 
+    # 两种模式严格共享 100% 一致的正文字体、行距、首行缩进与列表排版规范
+    typ_lines.append(f"""
 #set text(
   font: ("Times New Roman", "Songti SC", "STSong", "Songti TC", "SimSun"),
   size: 10.5pt,
@@ -1220,6 +1201,83 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         if img_match:
             img_caption = img_match.group(1).strip()
             img_path = img_match.group(2).strip()
+
+            # 针对官方微信公众号推介二维码，输出与教材出版流水线 100% 一致的高级出版级封底卡片
+            if 'aiia_wechat_mp_qr' in img_path or 'wechat_mp_qr' in img_path:
+                if typ_lines and typ_lines[-1].strip().startswith('#block(') and '深入人机协同' in typ_lines[-1]:
+                    typ_lines.pop()
+
+                native_promotion_card = f"""
+#v(1.2em)
+#align(center)[
+  #block(
+    width: 100%,
+    fill: gradient.linear(rgb("#f0fdf4").lighten(70%), rgb("#ffffff"), rgb("#f8fafc"), angle: 135deg),
+    radius: 18pt,
+    inset: (x: 18pt, y: 26pt),
+    stroke: 0.6pt + rgb("#e2e8f0"),
+  )[
+    // 1. 顶部胶囊药丸徽章
+    #box(
+      fill: rgb("#ecfdf5"),
+      stroke: 0.8pt + rgb("#a7f3d0"),
+      radius: 100pt,
+      inset: (x: 14pt, y: 4.5pt),
+    )[
+      #text(font: ("PingFang SC", "Heiti SC"), size: 9pt, weight: "bold", fill: rgb("#059669"))[课外拓展 · 持续进阶]
+    ]
+    #v(8pt)
+    
+    // 2. 核心主标题
+    #text(font: ("PingFang SC", "Heiti SC"), size: 14pt, weight: "bold", fill: rgb("#0f172a"))[深入人机协同 · 探索智能前沿]
+    #v(2pt)
+    
+    // 3. 副标题 / 导语
+    #text(font: ("PingFang SC", "Songti SC"), size: 9.5pt, fill: rgb("#64748b"))[获取最新 AI 动态与使用技巧]
+    #v(18pt)
+    
+    // 4. 中部悬浮白底质感卡片
+    #box(
+      fill: rgb("#ffffff"),
+      radius: 18pt,
+      stroke: 0.8pt + rgb("#e2e8f0"),
+      inset: (x: 22pt, top: 20pt, bottom: 16pt),
+    )[
+      // 二维码浅灰内衬
+      #box(
+        fill: rgb("#f8fafc"),
+        radius: 12pt,
+        inset: 10pt,
+        stroke: 0.6pt + rgb("#f1f5f9"),
+      )[
+        #image("{img_path}", width: 112pt)
+      ]
+      #v(12pt)
+      #box[
+        #text(size: 9.5pt, weight: "bold", fill: rgb("#334155"))[
+          #text(fill: rgb("#10b981"), size: 11pt)[●] 微信扫一扫 · 关注公众号
+        ]
+      ]
+    ]
+    #v(26pt)
+    
+    // 5. 底部署名与平台标识
+    #grid(
+      columns: (1fr, auto, 1fr),
+      align: horizon,
+      line(length: 100%, stroke: 0.5pt + rgb("#cbd5e1")),
+      pad(x: 10pt)[#text(size: 8.5pt, weight: "bold", fill: rgb("#64748b"))[南昌大学 AI 创新应用实验室]],
+      line(length: 100%, stroke: 0.5pt + rgb("#cbd5e1")),
+    )
+    #v(3pt)
+    #text(font: ("Times New Roman", "Arial"), size: 7.5pt, tracking: 0.15em, fill: rgb("#94a3b8"))[NCU SMART COURSEWARE PLATFORM]
+  ]
+]
+#v(1.0em)
+"""
+                typ_lines.append(native_promotion_card)
+                i += 1
+                continue
             caption_block = ""
             if img_caption:
                 caption_block = f"""
@@ -1260,17 +1318,6 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 """)
         else:
             typ_lines.append(f"\n{tbl_rendered}\n")
-
-    if mode == "long":
-        escaped_inst = metadata['institution'].replace("@", '#"@"')
-        typ_lines.append(f"""
-#v(1.2em)
-#line(length: 100%, stroke: 0.5pt + rgb("#e2e8f0"))
-#v(0.3em)
-#align(center)[
-  #text(size: 8.5pt, fill: rgb("#94a3b8"))[{escaped_inst} · 出版级技术规范]
-]
-""")
 
     return "\n".join(typ_lines)
 
