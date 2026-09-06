@@ -277,19 +277,29 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
       var styleNodes = clone.querySelectorAll('style');
       styleNodes.forEach(function(s) { s.remove(); });
 
-      // 4. 通用自适应视口边界与留白重算：消除右侧大片空白，保证虚线泳道框完整闭合
+      // 4. 通用自适应视口边界与留白重算：消除顶部过宽空白，防止右侧虚线框被裁切
       try {
         var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
-        // 探测所有具有实际视觉呈现的内容元素（排除全屏背景 rect）
-        var contentSelectors = [
-          '[data-node-id]', 'g[data-edge-id]', 'rect.c-lane', 'rect.c-boundary',
-          'rect.c-container', 'line', 'path', 'text', 'polygon', 'circle', 'ellipse'
+        // 仅探测具有实际视觉呈现的顶层架构实体，严格排除 defs、pattern 及图标局部坐标系的干扰
+        var entitySelectors = [
+          '[data-node-id]',
+          'g[data-edge-id]',
+          'path[data-edge-id]',
+          'rect[data-graph-role="structural-frame"]',
+          'rect.c-region',
+          'rect.c-security-group',
+          'rect.c-lane',
+          'rect.c-boundary',
+          'rect.c-container',
+          'line.c-lifeline',
+          'g[id^="legend"]',
+          'text'
         ];
-        var contentElements = svg.querySelectorAll(contentSelectors.join(','));
+        var contentElements = svg.querySelectorAll(entitySelectors.join(','));
         contentElements.forEach(function(el) {
+          if (el.closest && el.closest('defs, pattern, .semantic-sigil')) return;
           if (el.tagName.toLowerCase() === 'rect' && (el.getAttribute('width') === '100%' || el.getAttribute('id') === 'grid')) return;
-          if (el.closest && el.closest('defs')) return;
           try {
             var b = el.getBBox();
             if (b && b.width > 0 && b.height > 0) {
@@ -299,28 +309,29 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
               if (b.y + b.height > maxY) maxY = b.y + b.height;
             }
           } catch (e) {}
-        });
 
-        // 进一步探测显式坐标属性（防止特殊 path / lifeline 的边界偏差）
-        var allLanes = svg.querySelectorAll('rect.c-lane, rect.c-boundary, rect.c-container, line.c-lifeline');
-        allLanes.forEach(function(r) {
-          var y = parseFloat(r.getAttribute('y') || r.getAttribute('y1') || '0');
-          var h = parseFloat(r.getAttribute('height') || '0');
-          var y2 = parseFloat(r.getAttribute('y2') || '0');
-          var bottom = Math.max(y + h, y2);
-          var x = parseFloat(r.getAttribute('x') || r.getAttribute('x1') || '0');
-          var w = parseFloat(r.getAttribute('width') || '0');
-          var x2 = parseFloat(r.getAttribute('x2') || '0');
-          var right = Math.max(x + w, x2);
+          // 显式几何属性探测防御（特别包含 c-region、c-security-group 等容器与泳道）
+          var x = parseFloat(el.getAttribute('x') || el.getAttribute('x1') || '0');
+          var y = parseFloat(el.getAttribute('y') || el.getAttribute('y1') || '0');
+          var w = parseFloat(el.getAttribute('width') || '0');
+          var h = parseFloat(el.getAttribute('height') || '0');
+          var x2 = parseFloat(el.getAttribute('x2') || '0');
+          var y2 = parseFloat(el.getAttribute('y2') || '0');
 
-          if (!isNaN(bottom) && bottom > maxY) maxY = bottom;
-          if (!isNaN(right) && right > maxX) maxX = right;
-          if (!isNaN(y) && y < minY) minY = y;
-          if (!isNaN(x) && x < minX) minX = x;
+          if (w > 0 && h > 0) {
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x + w > maxX) maxX = x + w;
+            if (y + h > maxY) maxY = y + h;
+          }
+          if (x2 > 0 && y2 > 0) {
+            if (x2 > maxX) maxX = x2;
+            if (y2 > maxY) maxY = y2;
+          }
         });
 
         if (minX !== Infinity && maxX !== -Infinity) {
-          // 对称优雅的留白：左右留出 24px，上下留出 24px
+          // 对称优雅的出版级留白：左右留出 24px，上下留出 24px
           var padX = 24;
           var padY = 24;
           var vbMinX = Math.floor(minX - padX);
