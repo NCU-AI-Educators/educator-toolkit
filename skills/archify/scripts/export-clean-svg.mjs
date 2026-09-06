@@ -114,6 +114,28 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
               stroke = 'rgba(100, 116, 139, 0.5)';
             }
             strokeWidth = '1px';
+
+            // 连线标签药丸框自适应：根据真实文字测量宽度，动态保证两侧各有至少 8px 舒适呼吸内边距并保持居中
+            try {
+              var siblingText = edgeG ? edgeG.querySelector('text') : null;
+              if (siblingText) {
+                var tb = siblingText.getBBox();
+                if (tb && tb.width > 0) {
+                  var minPillW = Math.ceil(tb.width + 16);
+                  var curW = parseFloat(orig.getAttribute('width') || '0');
+                  var newW = Math.max(curW, minPillW);
+                  var textCenterX = tb.x + tb.width / 2;
+                  target.setAttribute('width', newW.toString());
+                  target.setAttribute('x', (textCenterX - newW / 2).toString());
+
+                  var minPillH = Math.max(parseFloat(orig.getAttribute('height') || '16'), 17);
+                  target.setAttribute('height', minPillH.toString());
+                  var textCenterY = tb.y + tb.height / 2;
+                  target.setAttribute('y', (textCenterY - minPillH / 2).toString());
+                  target.setAttribute('rx', '4');
+                }
+              }
+            } catch (e) {}
           }
 
           if (stroke && stroke !== 'none' && stroke !== 'rgba(0, 0, 0, 0)') {
@@ -151,7 +173,40 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
           var weight = orig.getAttribute('font-weight') || cs.fontWeight || '600';
           var textContent = orig.textContent.trim();
 
-          if (orig.hasAttribute('data-stage-label')) {
+          // 检查是否属于时序图参与者节点（Sequence participant）或者小卡片容器
+          var participantG = orig.closest && (
+            orig.closest('g[data-node-context="Sequence participant"]') ||
+            orig.closest('g[data-node-context*="participant"]') ||
+            orig.closest('g[id^="node-"]')
+          );
+
+          if (participantG) {
+            var cardRect = participantG.querySelector('rect');
+            var cardW = cardRect ? parseFloat(cardRect.getAttribute('width') || '86') : 86;
+            // 当卡片宽度小于等于 100px 时（时序图顶部参与者节点，如 86x54）
+            if (cardW <= 100) {
+              if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
+                newSize = 12.0;
+                weight = '700';
+              } else if (orig.getAttribute('data-detail') === 'context' || orig.classList.contains('t-muted')) {
+                newSize = 8.0;
+                weight = '500';
+                target.setAttribute('fill', 'rgb(71, 85, 105)');
+              }
+            } else {
+              // 架构图大卡片节点
+              if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
+                newSize = Math.max(newSize, 17.0);
+                weight = '700';
+              } else if (orig.getAttribute('data-detail') === 'context') {
+                newSize = Math.max(newSize, 13.0);
+                weight = '600';
+                if (textFill.includes('100, 116, 139') || textFill.includes('148, 163, 184')) {
+                  target.setAttribute('fill', 'rgb(51, 65, 85)');
+                }
+              }
+            }
+          } else if (orig.hasAttribute('data-stage-label')) {
             newSize = 16.0;
             weight = '800';
             target.setAttribute('fill', 'rgb(30, 64, 175)');
@@ -159,25 +214,36 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
             newSize = 16.5;
             weight = '800';
             target.setAttribute('fill', 'rgb(180, 83, 9)');
-          } else if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
-            newSize = Math.max(newSize, 17.5);
-            weight = '700';
-            if (!orig.closest || !orig.closest('g[data-edge-id]')) {
-              target.setAttribute('fill', '#0f172a');
-            }
+          } else if (orig.closest && orig.closest('g[data-edge-id]')) {
+            // 连线上的消息标签，保持清晰紧凑
+            newSize = Math.min(Math.max(newSize, 9.0), 9.5);
+            weight = '500';
           } else if (orig.getAttribute('data-detail') === 'context') {
-            newSize = Math.max(newSize, 14.5);
+            newSize = Math.max(newSize, 13.0);
             weight = '600';
-            if (textFill.includes('100, 116, 139') || textFill.includes('148, 163, 184')) {
-              target.setAttribute('fill', 'rgb(51, 65, 85)'); // 加深为高对比深石板色
-            }
           } else if (orig.getAttribute('data-detail') === 'fine') {
-            newSize = Math.max(newSize, 13.5);
+            newSize = Math.max(newSize, 11.5);
             weight = '700';
           }
 
           target.setAttribute('font-size', newSize.toString());
           target.setAttribute('font-weight', weight);
+
+          // 溢出防护拦截：对于卡片内文字，若测得渲染宽度仍超过可用宽度，动态缩减字号确保绝不溢出
+          if (participantG) {
+            try {
+              var cardRect = participantG.querySelector('rect');
+              var cardW = cardRect ? parseFloat(cardRect.getAttribute('width') || '86') : 86;
+              var tBbox = orig.getBBox();
+              if (tBbox && tBbox.width > cardW - 8 && cardW > 20) {
+                var scale = (cardW - 10) / tBbox.width;
+                if (scale < 1.0) {
+                  var adjustedSize = Math.max(7.0, Math.floor(newSize * scale * 10) / 10);
+                  target.setAttribute('font-size', adjustedSize.toString());
+                }
+              }
+            } catch (e) {}
+          }
 
           // 居中优化：若原文本设置了 text-anchor="middle"，确保保留
           var anchor = orig.getAttribute('text-anchor') || cs.textAnchor;
@@ -209,27 +275,31 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
       var styleNodes = clone.querySelectorAll('style');
       styleNodes.forEach(function(s) { s.remove(); });
 
-      // 4. 通用自适应视口边界与留白重算，确保虚线泳道框完整闭合无裁切
-      var origViewBox = svg.getAttribute('viewBox');
-      var vbMinX = 0, vbMinY = 0, vbWidth = 1080, vbHeight = 620;
-      if (origViewBox) {
-        var parts = origViewBox.trim().split(/[\s,]+/).map(Number);
-        if (parts.length === 4 && !parts.some(isNaN)) {
-          vbMinX = parts[0];
-          vbMinY = parts[1];
-          vbWidth = parts[2];
-          vbHeight = parts[3];
-        }
-      }
-
+      // 4. 通用自适应视口边界与留白重算：消除右侧大片空白，保证虚线泳道框完整闭合
       try {
-        var bbox = svg.getBBox();
-        var maxY = bbox.y + bbox.height;
-        var maxX = bbox.x + bbox.width;
-        var minY = bbox.y;
-        var minX = bbox.x;
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
-        // 进一步探测虚线泳道框、生命线与背景容器的绝对下边界
+        // 探测所有具有实际视觉呈现的内容元素（排除全屏背景 rect）
+        var contentSelectors = [
+          '[data-node-id]', 'g[data-edge-id]', 'rect.c-lane', 'rect.c-boundary',
+          'rect.c-container', 'line', 'path', 'text', 'polygon', 'circle', 'ellipse'
+        ];
+        var contentElements = svg.querySelectorAll(contentSelectors.join(','));
+        contentElements.forEach(function(el) {
+          if (el.tagName.toLowerCase() === 'rect' && (el.getAttribute('width') === '100%' || el.getAttribute('id') === 'grid')) return;
+          if (el.closest && el.closest('defs')) return;
+          try {
+            var b = el.getBBox();
+            if (b && b.width > 0 && b.height > 0) {
+              if (b.x < minX) minX = b.x;
+              if (b.y < minY) minY = b.y;
+              if (b.x + b.width > maxX) maxX = b.x + b.width;
+              if (b.y + b.height > maxY) maxY = b.y + b.height;
+            }
+          } catch (e) {}
+        });
+
+        // 进一步探测显式坐标属性（防止特殊 path / lifeline 的边界偏差）
         var allLanes = svg.querySelectorAll('rect.c-lane, rect.c-boundary, rect.c-container, line.c-lifeline');
         allLanes.forEach(function(r) {
           var y = parseFloat(r.getAttribute('y') || r.getAttribute('y1') || '0');
@@ -247,28 +317,20 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
           if (!isNaN(x) && x < minX) minX = x;
         });
 
-        // 确保顶部与左侧有安全裕量
-        if (minX < vbMinX + 12) {
-          var diffX = (vbMinX + 12) - minX;
-          vbMinX -= diffX;
-          vbWidth += diffX;
-        }
-        if (minY < vbMinY + 12) {
-          var diffY = (vbMinY + 12) - minY;
-          vbMinY -= diffY;
-          vbHeight += diffY;
-        }
+        if (minX !== Infinity && maxX !== -Infinity) {
+          // 对称优雅的留白：左右留出 24px，上下留出 24px
+          var padX = 24;
+          var padY = 24;
+          var vbMinX = Math.floor(minX - padX);
+          var vbMinY = Math.floor(minY - padY);
+          var vbWidth = Math.ceil((maxX - minX) + padX * 2);
+          var vbHeight = Math.ceil((maxY - minY) + padY * 2);
 
-        // 确保底部与右侧留出充足的呼吸留白（30px），保证虚线边框与端点无损闭合
-        var requiredWidth = maxX - vbMinX + 28;
-        var requiredHeight = maxY - vbMinY + 32;
-        vbWidth = Math.max(vbWidth, Math.ceil(requiredWidth));
-        vbHeight = Math.max(vbHeight, Math.ceil(requiredHeight));
+          clone.setAttribute('viewBox', [vbMinX, vbMinY, vbWidth, vbHeight].join(' '));
+        }
       } catch (e) {
-        vbHeight += 30;
+        console.warn('Tight viewBox calculation fallback:', e);
       }
-
-      clone.setAttribute('viewBox', [vbMinX, vbMinY, vbWidth, vbHeight].join(' '));
 
       // 5. 清除交互状态与外层控制属性
       clone.style.removeProperty('transform');
