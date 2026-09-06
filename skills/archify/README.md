@@ -107,7 +107,7 @@ skills/archify/
 
 ## 💬 智能体交互指南：自然语言与斜杠命令 (Prompt & Slash Commands)
 
-在配置了 Archify 技能的 AI 智能体（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Windsurf** 等）中，普通用户无需手动编写复杂的 JSON 建模或调用 Node 脚本，直接通过自然语言或斜杠命令即可完成全套图表的设计与无缝导出：
+在配置了 Archify 技能的 AI 智能体（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Codex** 等）中，普通用户无需手动编写复杂的 JSON 建模或调用 Node 脚本，直接通过自然语言或斜杠命令即可完成全套图表的设计与无缝导出：
 
 ### 1. 自然语言交互提示词 (Prompt Templates)
 

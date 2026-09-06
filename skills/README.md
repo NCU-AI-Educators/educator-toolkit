@@ -1,6 +1,6 @@
 # AI 教育者 Agent 技能集 (Educator Toolkit Skills)
 
-欢迎来到 **Educator Toolkit Skills**！这里汇集了专为 AI Coding Agent（如 Google Antigravity、Claude Code、Cursor、Windsurf 等）定制的专业级自动化技能包。
+欢迎来到 **Educator Toolkit Skills**！这里汇集了专为 AI Coding Agent（如 Google Antigravity、Claude Code、Cursor、Codex 等）定制的专业级自动化技能包。
 
 通过引入标准化的 Agent 技能，AI 助手不再只是通用的文本生成器，而是具备**符合教育学规范、出版级排版精度和工程制图水准**的专业助教。
 
@@ -43,7 +43,7 @@
 
 ## 💬 智能体调用指南：如何触发与使用这两大 Skill (User Invocation Guide)
 
-对于使用 AI 编程助手（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Windsurf**、**Cline** 等）的普通用户与教育者，无需记忆底层复杂的脚本路径与终端参数，智能体原生支持两种极简的调用方式：**自然语言智能触发** 与 **斜杠命令（Slash Command）精准调度**。
+对于使用 AI 编程助手（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Codex**、**Cline** 等）的普通用户与教育者，无需记忆底层复杂的脚本路径与终端参数，智能体原生支持两种极简的调用方式：**自然语言智能触发** 与 **斜杠命令（Slash Command）精准调度**。
 
 ### 方式一：自然语言触发（AI 智能识别，零记忆成本）
 
@@ -107,7 +107,7 @@ mkdir -p .agents/skills
 cp -r path/to/educator-toolkit/skills/* .agents/skills/
 ```
 
-### 2. Cursor / Windsurf / Claude Code
+### 2. Cursor / Codex / Claude Code
 将对应的 `SKILL.md` 内容作为 System Instructions 或 Custom Rules 引入，或者通过项目提示词规则文件（如 `.cursorrules`、`CLAUDE.md`）显式引用该目录下的执行脚本：
 ```markdown
 When generating architecture diagrams or exporting figures for documents, reference `skills/archify/SKILL.md`.

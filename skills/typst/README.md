@@ -80,7 +80,7 @@ skills/typst/
 
 ## 💬 智能体交互指南：自然语言与斜杠命令 (Prompt & Slash Commands)
 
-在配置了 Typst 技能的 AI 智能体（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Windsurf** 等）中，普通用户无需直接操作 Python 脚本与编译参数，直接通过自然语言或斜杠命令即可一键完成排版与 PDF 编译：
+在配置了 Typst 技能的 AI 智能体（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Codex** 等）中，普通用户无需直接操作 Python 脚本与编译参数，直接通过自然语言或斜杠命令即可一键完成排版与 PDF 编译：
 
 ### 1. 自然语言交互提示词 (Prompt Templates)
 
