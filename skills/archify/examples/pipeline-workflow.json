@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "核心联动工作流：出版级学术材料生产线",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "full-pipeline",
+        "label": "全链路端到端出版流水线",
+        "focus": ["ssot_source", "archify_agent", "html_diagram", "clean_svg", "doc_writer", "typst_compiler", "publication_pdf"],
+        "note": "从 SSOT Markdown 规范定义，经 Archify 矢量清洗，最终由 Typst 编译为 A4 双面教材。"
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "diagram_lane", "label": "Archify 矢量图表轨" },
+    { "id": "content_lane", "label": "SSOT 规范内容轨" },
+    { "id": "publishing_lane", "label": "Typst 出版排版轨" }
+  ],
+  "phases": [
+    { "id": "stage_input", "label": "阶段一：基准定义", "fromCol": 0, "toCol": 0 },
+    { "id": "stage_production", "label": "阶段二：双轨协同生产", "fromCol": 1, "toCol": 3, "variant": "emphasis" },
+    { "id": "stage_compilation", "label": "阶段三：排版出版", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "grp_archify", "label": "Archify 纯净矢量清洗管道", "lane": "diagram_lane", "fromCol": 1, "toCol": 3, "variant": "emphasis" },
+    { "id": "grp_typst", "label": "Typst 双面出版印刷引擎", "lane": "publishing_lane", "fromCol": 4, "toCol": 5, "variant": "emphasis" }
+  ],
+  "mainPath": ["ssot_source", "archify_agent", "html_diagram", "clean_svg", "typst_compiler", "publication_pdf"],
+  "nodes": [
+    { "id": "ssot_source", "lane": "content_lane", "col": 0, "type": "external", "label": "SSOT Markdown", "sublabel": "教材大纲 / 架构方案", "tag": "单一事实源", "width": 140 },
+    { "id": "archify_agent", "lane": "diagram_lane", "col": 1, "type": "backend", "label": "调用 Archify 技能", "sublabel": "架构/时序/拓扑建模", "tag": "Agent 自动拓扑", "width": 140 },
+    { "id": "html_diagram", "lane": "diagram_lane", "col": 2, "type": "frontend", "label": "交互式 HTML 图表", "sublabel": "镜头漫游 / 脉冲探测", "tag": "Web 探索模式", "width": 140 },
+    { "id": "clean_svg", "lane": "diagram_lane", "col": 3, "type": "cloud", "label": "export-clean-svg", "sublabel": "字号加权 / 剥离外壳", "tag": "出版级 Clean SVG", "width": 140 },
+    { "id": "doc_writer", "lane": "content_lane", "col": 2, "type": "backend", "label": "规范内容编写", "sublabel": "LaTeX 公式 / 科技三线表", "tag": "结构化文本", "width": 140 },
+    { "id": "typst_compiler", "lane": "publishing_lane", "col": 4, "type": "database", "label": "调用 Typst 技能", "sublabel": "解析 SSOT / 奇偶页眉", "tag": "ssot_to_typst.py", "width": 140 },
+    { "id": "publication_pdf", "lane": "publishing_lane", "col": 5, "type": "backend", "label": "学术出版级 PDF", "sublabel": "A4 双面印刷 / 对称书脊边距", "tag": "矢量成果物", "width": 140 }
+  ],
+  "edges": [
+    { "id": "e_ssot_archify", "from": "ssot_source", "to": "archify_agent", "label": "意图触发", "variant": "emphasis" },
+    { "id": "e_ssot_content", "from": "ssot_source", "to": "doc_writer", "label": "编写方案", "variant": "default" },
+    { "id": "e_archify_html", "from": "archify_agent", "to": "html_diagram", "label": "生成图表", "variant": "default" },
+    { "id": "e_html_clean", "from": "html_diagram", "to": "clean_svg", "label": "CDP 清洗", "variant": "emphasis" },
+    { "id": "e_content_typst", "from": "doc_writer", "to": "typst_compiler", "label": "注入文本与公式", "variant": "default" },
+    { "id": "e_svg_typst", "from": "clean_svg", "to": "typst_compiler", "label": "无损嵌入矢量图", "variant": "emphasis" },
+    { "id": "e_typst_pdf", "from": "typst_compiler", "to": "publication_pdf", "label": "一键编译成书", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "单一事实源 (SSOT)",
+      "items": [
+        "所有教材教案、技术设计与架构图均源自同一套受控 Markdown 文档",
+        "杜绝代码、文档与插图割裂维护"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Archify 纯净矢量清洗",
+      "items": [
+        "一键剔除全部 Web UI、搜索框与底栏交互外壳",
+        "字号自动加权提升，小标题半透明同色系微强调，完美适配印刷"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Typst 双面出版印刷",
+      "items": [
+        "A4 纸张对称装订内边距与奇偶页动态页眉",
+        "科技三线表底线严格闭合，集成 4090 Kroki 离线算力渲染"
+      ]
+    }
+  ]
+}
