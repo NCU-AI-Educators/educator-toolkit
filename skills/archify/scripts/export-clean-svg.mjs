@@ -190,15 +190,15 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
             newSize = Math.max(curSize, 17.5);
             weight = '800';
             target.setAttribute('fill', 'rgb(180, 83, 9)');
-          } else if ((textContent.length >= 4 && textContent.indexOf('/') >= 2 && textContent.indexOf('/') <= 5) || orig.classList.contains('t-dim')) {
+          } else if ((/^[0-9]{2}\s*\//.test(textContent) && !orig.closest('[data-legend]')) || orig.classList.contains('t-dim')) {
             // 泳道/分区大标题 (如 01 / 规则轨)
             newSize = Math.max(curSize, 17.5);
             weight = '800';
             target.setAttribute('fill', '#0f172a');
           } else if (orig.closest && orig.closest('g[data-edge-id]')) {
-            // 连线上的消息标签/药丸文字：出版级核心，平衡清晰度与节点间隙，升级至 13.5px 粗体
-            newSize = Math.max(curSize, 13.5);
-            weight = '700';
+            // 连线上的消息标签/药丸文字：基于节点间距与字符当量的几何自适应黄金字号 (9.5px)
+            newSize = 9.5;
+            weight = '600';
             if (textFill.includes('100, 116, 139') || textFill.includes('148, 163, 184') || !textFill || textFill === 'none') {
               target.setAttribute('fill', '#0f172a');
             }
@@ -222,19 +222,19 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
             } else {
               // 标准组件卡片 (宽 > 100px)
               if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
-                newSize = Math.max(curSize, 17.0);
+                newSize = 12.5;
                 weight = '700';
                 target.setAttribute('fill', '#0f172a');
               } else if (orig.getAttribute('data-detail') === 'context' || orig.classList.contains('t-muted')) {
-                newSize = Math.max(curSize, 14.5);
-                weight = '600';
-                target.setAttribute('fill', 'rgb(51, 65, 85)'); // 高对比深石板色
+                newSize = 10.0;
+                weight = '500';
+                target.setAttribute('fill', 'rgb(51, 65, 85)');
               } else if (orig.getAttribute('data-detail') === 'fine') {
-                newSize = Math.max(curSize, 13.0);
-                weight = '700';
-              } else {
-                newSize = Math.max(curSize, 14.0);
+                newSize = 9.0;
                 weight = '600';
+              } else {
+                newSize = 10.0;
+                weight = '500';
               }
             }
           } else {
@@ -257,7 +257,7 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
               if (tBbox && tBbox.width > maxAllowedWidth && cardW > 30) {
                 var scale = maxAllowedWidth / tBbox.width;
                 if (scale < 1.0) {
-                  var adjustedSize = Math.max(13.0, Math.floor(newSize * scale * 10) / 10);
+                  var adjustedSize = Math.max(9.0, Math.floor(newSize * scale * 10) / 10);
                   target.setAttribute('font-size', adjustedSize.toString());
                 }
               }
@@ -300,9 +300,9 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
 
         if (label && ctx && fine) {
           // 3 行文本最佳视距 (40% / 67% / 86%)
-          label.setAttribute('y', String(Math.round((y0 + h * 0.40) * 10) / 10));
-          ctx.setAttribute('y', String(Math.round((y0 + h * 0.67) * 10) / 10));
-          fine.setAttribute('y', String(Math.round((y0 + h * 0.86) * 10) / 10));
+          label.setAttribute('y', String(Math.round((y0 + 24) * 10) / 10));
+          ctx.setAttribute('y', String(Math.round((y0 + 42) * 10) / 10));
+          fine.setAttribute('y', String(Math.round((y0 + 57) * 10) / 10));
         } else if (label && ctx) {
           // 2 行文本布局
           label.setAttribute('y', String(Math.round((y0 + h * 0.45) * 10) / 10));
@@ -310,11 +310,37 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
         }
       });
 
-      // 1.3 为所有连线药丸标签增加精致边框
-      Array.from(clone.querySelectorAll('g[data-edge-id] rect.c-mask')).forEach(function(mask) {
+      // 1.3 连线药丸标签背景遮罩动态几何贴合与精致微边框
+      Array.from(clone.querySelectorAll('g[data-edge-id]')).forEach(function(edgeG) {
+        var mask = edgeG.querySelector('rect.c-mask');
+        var text = edgeG.querySelector('text');
+        if (!mask) return;
         if (!mask.getAttribute('stroke') || mask.getAttribute('stroke') === 'none') {
           mask.setAttribute('stroke', 'rgb(203, 213, 225)');
           mask.setAttribute('stroke-width', '1px');
+        }
+        if (text) {
+          try {
+            var tB = text.getBBox();
+            if (tB && tB.width > 0) {
+              var mW = Math.round((tB.width + 10) * 10) / 10;
+              var mH = 17;
+              var tx = parseFloat(text.getAttribute('x') || '0');
+              var ty = parseFloat(text.getAttribute('y') || '0');
+              mask.setAttribute('width', String(mW));
+              mask.setAttribute('height', String(mH));
+              mask.setAttribute('x', String(Math.round((tx - mW / 2) * 10) / 10));
+              mask.setAttribute('y', String(Math.round((ty - 11.5) * 10) / 10));
+              mask.setAttribute('rx', '3.5');
+            }
+          } catch (e) {}
+        }
+      });
+      // 1.4 图例文字排版规范保护：确保图例项字号统一且不溢出
+      Array.from(clone.querySelectorAll('[data-legend] text')).forEach(function(t) {
+        if (!t.textContent.includes('图例')) {
+          t.setAttribute('font-size', '10.5');
+          t.setAttribute('font-weight', '500');
         }
       });
 
