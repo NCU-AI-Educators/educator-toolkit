@@ -980,9 +980,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   below: 10pt
 )[
   #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
-  #block(width: 100%, below: 0.65em)[
-    #text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("{stroke_color}"))[{title_line}]
-  ]
+  #text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("{stroke_color}"))[{title_line}]
+  #v(3pt)
   #text(size: 9.5pt)[{body_joined}]
 ]
 """)
@@ -1202,82 +1201,6 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             img_caption = img_match.group(1).strip()
             img_path = img_match.group(2).strip()
 
-            # 针对官方微信公众号推介二维码，输出与教材出版流水线 100% 一致的高级出版级封底卡片
-            if 'aiia_wechat_mp_qr' in img_path or 'wechat_mp_qr' in img_path:
-                if typ_lines and typ_lines[-1].strip().startswith('#block(') and '深入人机协同' in typ_lines[-1]:
-                    typ_lines.pop()
-
-                native_promotion_card = f"""
-#v(1.2em)
-#align(center)[
-  #block(
-    width: 100%,
-    fill: gradient.linear(rgb("#f0fdf4").lighten(70%), rgb("#ffffff"), rgb("#f8fafc"), angle: 135deg),
-    radius: 18pt,
-    inset: (x: 18pt, y: 26pt),
-    stroke: 0.6pt + rgb("#e2e8f0"),
-  )[
-    // 1. 顶部胶囊药丸徽章
-    #box(
-      fill: rgb("#ecfdf5"),
-      stroke: 0.8pt + rgb("#a7f3d0"),
-      radius: 100pt,
-      inset: (x: 14pt, y: 4.5pt),
-    )[
-      #text(font: ("PingFang SC", "Heiti SC"), size: 9pt, weight: "bold", fill: rgb("#059669"))[课外拓展 · 持续进阶]
-    ]
-    #v(8pt)
-    
-    // 2. 核心主标题
-    #text(font: ("PingFang SC", "Heiti SC"), size: 14pt, weight: "bold", fill: rgb("#0f172a"))[深入人机协同 · 探索智能前沿]
-    #v(2pt)
-    
-    // 3. 副标题 / 导语
-    #text(font: ("PingFang SC", "Songti SC"), size: 9.5pt, fill: rgb("#64748b"))[获取最新 AI 动态与使用技巧]
-    #v(18pt)
-    
-    // 4. 中部悬浮白底质感卡片
-    #box(
-      fill: rgb("#ffffff"),
-      radius: 18pt,
-      stroke: 0.8pt + rgb("#e2e8f0"),
-      inset: (x: 22pt, top: 20pt, bottom: 16pt),
-    )[
-      // 二维码浅灰内衬
-      #box(
-        fill: rgb("#f8fafc"),
-        radius: 12pt,
-        inset: 10pt,
-        stroke: 0.6pt + rgb("#f1f5f9"),
-      )[
-        #image("{img_path}", width: 112pt)
-      ]
-      #v(12pt)
-      #box[
-        #text(size: 9.5pt, weight: "bold", fill: rgb("#334155"))[
-          #text(fill: rgb("#10b981"), size: 11pt)[●] 微信扫一扫 · 关注公众号
-        ]
-      ]
-    ]
-    #v(26pt)
-    
-    // 5. 底部署名与平台标识
-    #grid(
-      columns: (1fr, auto, 1fr),
-      align: horizon,
-      line(length: 100%, stroke: 0.5pt + rgb("#cbd5e1")),
-      pad(x: 10pt)[#text(size: 8.5pt, weight: "bold", fill: rgb("#64748b"))[南昌大学 AI 创新应用实验室]],
-      line(length: 100%, stroke: 0.5pt + rgb("#cbd5e1")),
-    )
-    #v(3pt)
-    #text(font: ("Times New Roman", "Arial"), size: 7.5pt, tracking: 0.15em, fill: rgb("#94a3b8"))[NCU SMART COURSEWARE PLATFORM]
-  ]
-]
-#v(1.0em)
-"""
-                typ_lines.append(native_promotion_card)
-                i += 1
-                continue
             caption_block = ""
             if img_caption:
                 caption_block = f"""
