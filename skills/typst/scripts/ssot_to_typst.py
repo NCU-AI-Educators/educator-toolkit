@@ -33,7 +33,7 @@ TYPST_MATH_BUILTINS = {
     "det", "dim", "gcd", "lcm", "ker", "hom", "mod", "lim", "sup", "inf", "root", "sqrt",
     "sum", "prod", "product", "integral", "dif", "partial", "round", "floor", "ceil",
     "bold", "italic", "upright", "underline", "overline", "cal", "bb", "frak", "mono",
-    "hat", "tilde", "dot", "ddot", "arrow", "vec",
+    "hat", "tilde", "dot", "ddot", "arrow", "vec", "macron", "top", "accent",
     "in", "notin", "subset", "supset", "approx", "equiv", "propto", "quad",
     "and", "or", "not", "times", "plus", "minus", "div", "star",
     "NN", "ZZ", "QQ", "RR", "CC", "infinity",
@@ -138,12 +138,6 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     raw = re.sub(r'\\text\{([^}]+)\}', lambda m: f'"{m.group(1).strip()}"', raw)
     raw = re.sub(r'\\mathrm\{([^}]+)\}', lambda m: f'"{m.group(1).strip()}"', raw)
 
-    while r'\frac' in raw:
-        new_raw = re.sub(r'\\frac\{([^{}]+)\}\{([^{}]+)\}', r'(\1) / (\2)', raw)
-        if new_raw == raw:
-            raw = re.sub(r'\\frac', '', raw)
-            break
-        raw = new_raw
 
     raw = re.sub(r'\\mathbf\{([^}]+)\}', r'bold(\1)', raw)
     raw = re.sub(r'\\boldsymbol\{([^}]+)\}', r'bold(\1)', raw)
@@ -218,6 +212,47 @@ def convert_latex_math_to_typst(math_content: str) -> str:
 
     for fn in ["sin", "cos", "tan", "cot", "log", "ln", "exp", "min", "max", "argmin", "argmax", "det", "dim", "sqrt"]:
         raw = re.sub(r'\\' + fn + r'(?![a-zA-Z])', fn, raw)
+
+    # 递归转换嵌套层级的 LaTeX 分数 \frac{A}{B} 为 Typst (A) / (B)
+    def parse_frac(s):
+        pos = s.find(r'\frac')
+        if pos == -1:
+            return s
+        p1_start = s.find('{', pos)
+        if p1_start == -1:
+            return s
+        depth = 0
+        p1_end = -1
+        for j in range(p1_start, len(s)):
+            if s[j] == '{': depth += 1
+            elif s[j] == '}':
+                depth -= 1
+                if depth == 0:
+                    p1_end = j
+                    break
+        if p1_end == -1:
+            return s
+        p2_start = s.find('{', p1_end)
+        if p2_start == -1:
+            return s
+        depth = 0
+        p2_end = -1
+        for j in range(p2_start, len(s)):
+            if s[j] == '{': depth += 1
+            elif s[j] == '}':
+                depth -= 1
+                if depth == 0:
+                    p2_end = j
+                    break
+        if p2_end == -1:
+            return s
+        num = parse_frac(s[p1_start+1:p1_end])
+        den = parse_frac(s[p2_start+1:p2_end])
+        return s[:pos] + f"({num}) / ({den})" + parse_frac(s[p2_end+1:])
+
+    raw = parse_frac(raw)
+    raw = re.sub(r'\\bar\{([^}]+)\}', r'macron(\1)', raw)
+    raw = re.sub(r'\\vec\{([^}]+)\}', r'arrow(\1)', raw)
 
     raw = re.sub(r'\\([a-zA-Z]+)', r'\1', raw)
     raw = re.sub(r'_\{([^}]+)\}', r'_(\1)', raw)
@@ -870,19 +905,63 @@ def convert_ssot_to_typst(md_path: str) -> str:
             i += 1
             continue
         
-        # 引用块 >
+        # 引用块 > 与 GitHub 风格 Callouts
         if stripped.startswith(">"):
             quote_indent = len(line) - len(line.lstrip())
             curr_quote = []
             while i < len(clean_lines) and clean_lines[i].strip().startswith(">"):
                 q_line = clean_lines[i].strip()[1:].strip()
-                q_line = format_inline_markdown(q_line)
                 curr_quote.append(q_line)
                 i += 1
-            joined_quote = "\n\n".join(curr_quote)
-            
+
+            # 检查首行是否是 GitHub Callout 标识符 [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]
+            callout_match = re.match(r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$', curr_quote[0], re.IGNORECASE) if curr_quote else None
+            if callout_match:
+                c_type = callout_match.group(1).upper()
+                c_body_lines = curr_quote[1:]
+                
+                # 配置各类型的色彩系统
+                c_configs = {
+                    "NOTE": ("#0284c7", "#f0f9ff", "ℹ️ 提示说明"),
+                    "TIP": ("#16a34a", "#f0fdf4", "💡 实践技巧"),
+                    "IMPORTANT": ("#7c3aed", "#faf5ff", "📌 关键要点"),
+                    "WARNING": ("#d97706", "#fffbeb", "⚠️ 注意事项"),
+                    "CAUTION": ("#dc2626", "#fef2f2", "🛑 安全告警"),
+                }
+                stroke_color, bg_color, default_title = c_configs.get(c_type, ("#0284c7", "#f0f9ff", "提示说明"))
+                
+                title_line = ""
+                content_lines = []
+                if c_body_lines and c_body_lines[0].startswith("**") and c_body_lines[0].endswith("**"):
+                    title_line = c_body_lines[0][2:-2].strip()
+                    content_lines = [format_inline_markdown(l) for l in c_body_lines[1:] if l]
+                else:
+                    title_line = default_title
+                    content_lines = [format_inline_markdown(l) for l in c_body_lines if l]
+                
+                body_joined = "\n\n".join(content_lines)
+                typ_lines.append(f"""
+#block(
+  width: 100%,
+  stroke: (left: 3.5pt + rgb("{stroke_color}")),
+  fill: rgb("{bg_color}"),
+  inset: (x: 12pt, y: 8pt),
+  radius: (right: 4pt),
+  above: 8pt,
+  below: 10pt
+)[
+  #text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("{stroke_color}"))[{title_line}]
+  #v(0.2em)
+  #set par(first-line-indent: (amount: 0em, all: true), leading: 0.65em)
+  #text(size: 9.5pt)[{body_joined}]
+]
+""")
+                continue
+
+            # 普通引用块
+            formatted_quotes = [format_inline_markdown(q) for q in curr_quote]
+            joined_quote = "\n\n".join(formatted_quotes)
             if quote_indent >= 2:
-                # 列表从属引用块：左侧对齐条目首部 2em，右侧 100% 充满版心对齐右边界
                 typ_lines.append(f"""
 #pad(left: 2em)[
   #block(
@@ -900,7 +979,6 @@ def convert_ssot_to_typst(md_path: str) -> str:
 ]
 """)
             else:
-                # 顶级引用块（如评估结论）：通栏全宽展示
                 typ_lines.append(f"""
 #block(
   width: 100%,
@@ -1087,7 +1165,34 @@ def convert_ssot_to_typst(md_path: str) -> str:
             continue
 
         # =========================================================================
-        # 3. 普通正文段落
+        # 3. 独立 Markdown 图片语法 ![caption](path)
+        # =========================================================================
+        img_match = re.match(r'^\s*!\[(.*?)\]\((.*?)\)\s*$', stripped)
+        if img_match:
+            img_caption = img_match.group(1).strip()
+            img_path = img_match.group(2).strip()
+            caption_block = ""
+            if img_caption:
+                caption_block = f"""
+  #v(-0.2em)
+  #align(center)[#text(font: ("PingFang SC", "Songti SC"), size: 9pt, style: "italic", fill: rgb("#475569"))[{img_caption}]]
+  #v(0.4em)
+"""
+            typ_lines.append(f"""
+#block(width: 100%, breakable: false)[
+  #align(center)[#block(width: 96%)[
+    #figure(
+      image("{img_path}", width: 92%)
+    )
+  ]]
+  {caption_block}
+]
+""")
+            i += 1
+            continue
+
+        # =========================================================================
+        # 4. 普通正文段落
         # =========================================================================
         p_formatted = format_inline_markdown(stripped)
         typ_lines.append(p_formatted)
@@ -1119,8 +1224,20 @@ def main():
         print(f"❌ 错误: 找不到输入文件 {in_md}")
         sys.exit(1)
 
-    out_pdf = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else in_md.replace(".ssot.md", ".pdf").replace(".md", ".pdf")
-    out_typ = out_pdf.replace(".pdf", ".typ")
+    if len(sys.argv) > 2:
+        arg2 = os.path.abspath(sys.argv[2])
+        if arg2.endswith(".typ"):
+            out_typ = arg2
+            out_pdf = arg2[:-4] + ".pdf"
+        elif arg2.endswith(".pdf"):
+            out_pdf = arg2
+            out_typ = arg2[:-4] + ".typ"
+        else:
+            out_pdf = arg2 + ".pdf"
+            out_typ = arg2 + ".typ"
+    else:
+        out_pdf = in_md.replace(".ssot.md", ".pdf").replace(".md", ".pdf")
+        out_typ = out_pdf.replace(".pdf", ".typ")
 
     print(f"📄 [SSOT-to-Typst] 正在解析: {in_md} ...")
     typst_code = convert_ssot_to_typst(in_md)
@@ -1130,7 +1247,8 @@ def main():
     print(f"✍️  [SSOT-to-Typst] 已生成 Typst 源码: {out_typ}")
 
     print(f"⚡ [SSOT-to-Typst] 正在调用 Typst 0.15 编译矢量 PDF ...")
-    cmd = f"typst compile \"{out_typ}\" \"{out_pdf}\""
+    root_dir = os.getcwd()
+    cmd = f"typst compile --root \"{root_dir}\" \"{out_typ}\" \"{out_pdf}\""
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
     if res.returncode != 0:

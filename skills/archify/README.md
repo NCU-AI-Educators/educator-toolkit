@@ -86,6 +86,26 @@ skills/archify/
 
 ---
 
+## 🖼️ 双轨效果对比实测 (Visual Showcase)
+
+> *注：以下示例采用通用的云原生微服务集群架构与标准分布式缓存时序，完全脱敏且不涉及任何具体商业项目或课程内容。*
+
+### 1. 云原生系统架构拓扑 (Cloud Architecture)
+
+| Web 富交互探索模式 (Dark Mode) | 出版级纯净矢量导出 (Publication Clean SVG) |
+| :---: | :---: |
+| <img src="../assets/archify-web-interactive-dark.png" alt="Archify Web 交互探索模式" width="100%"> | <img src="../assets/archify-clean-svg-preview.png" alt="Archify 出版级纯净矢量" width="100%"> |
+| *具有镜头切换、关系连线高光脉冲、缩放雷达与暗色全屏探索外壳* | *零外壳残留、字号加权提升 (+2.5px)、半透明同色系徽章，专为印刷优化* |
+
+### 2. 分布式请求时序交互 (Sequence Diagram)
+
+| 浏览器时序交互探索 (Light Mode) | 出版级纯净矢量时序图 (Clean SVG) |
+| :---: | :---: |
+| <img src="../assets/archify-sequence-interactive.png" alt="Archify 浏览器时序探索模式" width="100%"> | <img src="../assets/archify-sequence-clean-preview.png" alt="Archify 出版级纯净时序图" width="100%"> |
+| *交互式生命线与激活块高亮提示* | *自动视口边界留白，虚线泳道框完整闭合无裁切* |
+
+---
+
 ## 🚀 快速上手
 
 ### 1. 独立安装与运行

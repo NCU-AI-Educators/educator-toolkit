@@ -57,6 +57,26 @@ skills/typst/
 
 ---
 
+## 🖼️ 出版级排版效果实测 (Visual Showcase)
+
+> *注：以下截图基于完全脱敏且通用的《现代分布式系统架构设计与服务治理规范》SSOT 文档由编译器一键自动生成，不涉及任何具体商业项目或课程内容。*
+
+### 1. A4 双面排版首页（元数据、摘要卡片与科技三线表）
+展示完整的受控编号、摘要强调框、符合国家标准的科技学术三线表（1.2pt 粗顶底线、0.6pt 细栏目线、交替斑马纹与智能单元格防溢出）及奇偶动态页脚：
+
+<p align="center">
+  <img src="../assets/typst-page-1.png" alt="Typst 出版排版首页与科技三线表" width="85%">
+</p>
+
+### 2. 次页排版（高级数学公式、Callout 告警框与 Archify 纯净矢量图集成）
+展示 LaTeX 排队论公式解析（无双引号污染）、GitHub 风格彩色 Callout 提示块、完美嵌入的 Archify 纯净矢量架构拓扑图及 Golang 代码卡片：
+
+<p align="center">
+  <img src="../assets/typst-page-2.png" alt="Typst 出版排版次页与矢量架构图集成" width="85%">
+</p>
+
+---
+
 ## 🚀 快速上手
 
 ### 1. 环境准备

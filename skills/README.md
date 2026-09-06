@@ -48,6 +48,17 @@
 
 ---
 
+## 🖼️ 生产线成果实测 (Visual Showcase)
+
+> *注：以下示例基于脱敏通用的微服务架构与规范文档一键生成，不包含任何特定课程或业务信息。*
+
+| 步骤一：Archify 导出出版级纯净矢量 (Clean SVG) | 步骤二：Typst 编译 A4 双面出版级教材 (Vector PDF) |
+| :---: | :---: |
+| <img src="./assets/archify-clean-svg-preview.png" alt="Archify 出版级纯净矢量" width="100%"> | <img src="./assets/typst-page-2.png" alt="Typst 双面出版级教材" width="100%"> |
+| *无 UI 交互外壳、字号加权提升、半透明同色系徽章* | *A4 双面排版、奇偶页眉、公式保护、三线表与矢量拓扑融合* |
+
+---
+
 ## 🛠️ 如何在您的 AI Agent 中使用
 
 ### 1. Google Antigravity / Gemini CLI
