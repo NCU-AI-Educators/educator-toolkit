@@ -333,12 +333,18 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
     else:
         col_spec = f"({', '.join(['1fr']*num_cols)})"
 
+    num_rows = len(content_rows)
+    if num_rows == 1:
+        stroke_code = "    stroke: (x, y) => if y == 0 { (top: 1.2pt + rgb(\"#0f172a\"), bottom: 1.2pt + rgb(\"#0f172a\")) },"
+    else:
+        stroke_code = f"    stroke: (x, y) => if y == 0 {{ (top: 1.2pt + rgb(\"#0f172a\"), bottom: 0.8pt + rgb(\"#0f172a\")) }} else if y == {num_rows - 1} {{ (bottom: 1.2pt + rgb(\"#0f172a\")) }} else {{ (bottom: 0.5pt + rgb(\"#e2e8f0\")) }},"
+
     typ_table = [
         "#align(center)[#block(width: 100%)[",
         f"  #table(",
         f"    columns: {col_spec},",
         "    fill: (col, row) => if row == 0 { rgb(\"#f1f5f9\") } else { none },",
-        "    stroke: (x, y) => if y == 0 { (top: 1.2pt + rgb(\"#0f172a\"), bottom: 1.2pt + rgb(\"#0f172a\")) } else if y == 1 { (bottom: 0.8pt + rgb(\"#0f172a\")) } else { (bottom: 0.5pt + rgb(\"#e2e8f0\")) },",
+        stroke_code,
         "    inset: (x: 7pt, y: 7pt),",
         "    align: (col, row) => if row == 0 { center + horizon } else { left + horizon },"
     ]
