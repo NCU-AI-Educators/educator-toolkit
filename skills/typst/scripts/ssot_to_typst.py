@@ -945,13 +945,13 @@ def convert_ssot_to_typst(md_path: str) -> str:
   width: 100%,
   stroke: (left: 3.5pt + rgb("{stroke_color}")),
   fill: rgb("{bg_color}"),
-  inset: (x: 12pt, y: 8pt),
+  inset: (x: 12pt, y: 10pt),
   radius: (right: 4pt),
   above: 8pt,
   below: 10pt
 )[
-  #set par(first-line-indent: (amount: 0em, all: true), leading: 0.65em)
-  #block(width: 100%, below: 0.35em)[
+  #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
+  #block(width: 100%, below: 0.65em)[
     #text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("{stroke_color}"))[{title_line}]
   ]
   #text(size: 9.5pt)[{body_joined}]
