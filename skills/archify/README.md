@@ -1,88 +1,66 @@
 # Archify 架构与工程可视化技能 (Archify Engineering Visualizer Skill)
 
-> **专为现代软件工程与学术出版打造的系统架构、时序图与数据流图可视化引擎**
+> **基于优质开源项目 Archify 深度定制改造，专为高校纸质教材编写、学术科研出版与现代软件工程打造的系统架构、时序图与数据流图可视化引擎。**
 
-[![Archify Version](https://img.shields.io/badge/Archify-v2.18-7952b3.svg)](SKILL.md)
+[![Archify Version](https://img.shields.io/badge/Archify-v2.18%20Publication-7952b3.svg)](SKILL.md)
+[![Based on Open Source](https://img.shields.io/badge/Forked%20From-Archify%20Open%20Source-0284c7.svg)](https://github.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Format](https://img.shields.io/badge/Output-HTML%20%7C%20Clean%20SVG-blue.svg)](scripts/export-clean-svg.mjs)
+[![Output Formats](https://img.shields.io/badge/Output-HTML%20%7C%20Clean%20SVG-blue.svg)](scripts/export-clean-svg.mjs)
 
 ---
 
-## 📖 技能定位
+## 📢 开源渊源与致谢声明
 
-在复杂系统设计、教学方案与技术论文写作中，传统的绘图工具存在明显痛点：
-- **Mermaid 表达上限低**：样式粗糙、空间布局难以细调、无法承载富交互；
-- **GUI 绘图软件（Draw.io / Visio）脱离代码**：无法通过声明式 DSL 驱动，难以随代码版本迭代；
-- **Web 架构图无法直接印刷**：包含大量操作面板、缩放按钮、深色高对比外壳，直接截图或保存为图片模糊且不合出版规范。
-
-**Archify** 是一款双轨制架构绘图与可视化引擎，既支持在浏览器中进行**高维富交互探索**，又支持一键无损导出**出版级纯净矢量 SVG (Publication-grade Clean SVG)**，完美适配 Typst、LaTeX 及高校教材印刷出版。
+本技能（Agent Skill）基于开源项目 **Archify** 进行深度定制与二次演进：
+- **开源致敬**：感谢原作者与开源社区构建了卓越的声明式工程建模规范（DSL）、自动化拓扑布局引擎与沉浸式 Web 探索运行时；
+- **定制团队**：由南昌大学 AI 赋能教学与工程团队 (NCU-AI-Educators) 针对高校教材出版、学术论文排版以及工程单一事实源 (SSOT) 自动化流水线进行了长达数月的针对性算法调优与功能拓展。
 
 ---
 
-## ✨ 核心特性
+## ⚖️ 原版 Archify 的优势与局限剖析
 
-### 1. 五大声明式图表类型 (Declarative Diagram Families)
-Archify 支持输入 JSON / DSL 或 Mermaid 语法，自动编译为结构清晰、高审美的工程图表：
-- 🏗️ **Architecture（系统架构图）**：多层级系统拓扑、云原生服务集群、技术栈全景图；
-- ⏱️ **Sequence（交互时序图）**：API 调用序列、分布式事务、高保真生命周期交互时序；
-- 🌊 **Dataflow（数据流与管道图）**：ETL/ELT 管道、大数据清洗、消息队列流向；
-- 🔄 **Lifecycle（状态机与生命周期）**：对象状态演进、治理流程、审批流；
-- 🔀 **Workflow（工程工作流）**：CI/CD 流水线、多节点决策任务网络。
+### 🌟 原版 Archify 的核心优势 (Pros)
+1. **代码即架构的声明式 DSL**：支持 Architecture（架构图）、Sequence（时序图）、Dataflow（数据流图）、Lifecycle（生命周期状态机）、Workflow（工程工作流）五大典型图表族，摆脱低效的 Visio / Draw.io 手工拖拽；
+2. **惊艳的 Web 交互体验**：内置镜头聚焦预设（Camera Presets）、关系链路高光脉冲（Highlight Pulse）、缩放漫游雷达（Minimap）、深浅色主题无缝切换，是向管理者和技术团队做汇报演示的极佳载体；
+3. **自动化空间布局**：无需人工计算坐标，能够智能解析服务依赖并计算泳道与连线走向。
 
----
-
-### 2. 独特的“双轨”运行模式
-
-```
-                 [声明式 JSON / Mermaid 输入]
-                              │
-                              ▼
-                      [Archify 核心编译器]
-                              │
-             ┌────────────────┴────────────────┐
-             ▼                                 ▼
-   【轨道一：Web 富交互探索】           【轨道二：出版级纯净矢量导出】
-    • 沉浸式多镜头切换                  • 彻底剥离 UI 交互面板与外壳
-    • 关系连线动态高光脉冲              • 自动提升字号 (+2.5px) 确保纸质可读
-    • 暗色/亮色主题实时切换              • 同色系半透明标题徽章与居中防溢出
-    • 探索雷达与全屏漫游                • 严苛的视口边界重算，保证虚线框闭合
-    • 浏览器即开即用独立 HTML           • 100% 独立纯净 SVG，直接嵌入 Typst/LaTeX
-```
+### ⚠️ 面向学术出版与纸质印刷的痛点与不足 (Cons)
+在将原版 Archify 应用于国家级规划教材、自然科学基金申报书以及学术会议论文排版时，团队发现原版具有明显的“**重浏览器交互，轻纸面印刷**”局限：
+1. **Web Viewer 外壳残留无法印刷**：原版仅能导出包含大量搜索框、图例弹窗、缩放控制栏、操作底栏和暗色高对比卡片外壳的完整 HTML，无法作为纯净插图直接嵌入 LaTeX、Typst 或 Word；
+2. **文字字号过小，缩放印刷发虚**：原版字号主要针对 1080P/4K 屏幕优化（通常仅 11px~12px）。一旦缩小并印刷至 A4 纸张，字迹微缩模糊，严重影响阅读体验；
+3. **模块小标题纯白硬底粗暴遮挡**：原版小标题与分组标签采用纯白不透明硬底，在复杂拓扑网络中极易粗暴遮盖底层的流程箭头与关键结构；
+4. **字号放大时文字向左严重溢出**：原版标题框宽度为静态写死，简单粗暴加大字号会导致文字在框内向左溢出，失去几何居中；
+5. **视口裁切过窄导致虚线框断裂**：原版提取静态 SVG 时视口外边距过贴，外层虚线容器框和泳道底部经常被腰斩，无法闭合；
+6. **连接箭头被放大卡片“吞没”**：文字和节点放大后，原版的连线端口吸附位置未自适应偏移，导致箭头被放大的卡片边框压住或遮挡。
 
 ---
 
-## 🔬 出版级纯净矢量 (Clean SVG) 7 项关键保证
+## 🚀 本 Skill 的重大升级与关键改进 (Our Enhancements)
 
-针对学术纸质教材、技术可行性报告与毕业设计排版，Archify 内置了经过南昌大学（NCU）项目团队实战检验的 7 项出版级转换不变量：
+针对上述痛点，南昌大学团队对 Archify 进行了工程级重构与能力增强，固化出出版级纯净矢量转换引擎，确保了 **7 项出版级转换不变量**：
 
-1. **零外壳残留 (Zero Chrome Artifacts)**：自动切除所有的工具栏、搜索框、暗色背景卡片、缩放控制键等 Web 交互元素；
-2. **自动化字号提升 (Automated Typography Scaling)**：图中小字自动加权提升（+2.5px，正文文字达到 14px~16.5px），防止缩放打印到 A4 纸面时字迹发虚；
-3. **半透明同色系徽章 (Translucent Tinted Badges)**：小标题与分组标签背景采用与文字同色系的极浅底色（透明度 0.12~0.15），杜绝纯白硬底遮挡底部流程线；
-4. **文字居中与防溢出保护 (Centering & Anti-Overflow)**：小标题框宽度随文字放大自动同步自适应拓宽，文字严格几何居中；
-5. **视口边界与虚线框闭合 (Bounds Recalculation)**：视口上下左右智能扩展留白，防止虚线泳道框或容器底部在裁切时被切断；
-6. **箭头避让与无损连接 (Arrow Boundary Snapping)**：针对放大的文本框重新计算连接端口锚点，杜绝箭头被变大的文本框边缘“吞没”；
-7. **纯内联与跨平台兼容**：样式全部内联，字体回落到标准系统字体，Typst / LaTeX / 浏览器 / 矢量绘图软件均可 100% 真实还原。
+| 痛点问题 | 原版表现 | 本 Skill 优化改进 |
+| :--- | :--- | :--- |
+| **外部交互残留** | 包含搜索框、暗色背景卡片、缩放控件 | **零外壳残留 (Zero Chrome)**：内置无头 Chrome CDP 清洗管道，一键剔除全部 Web UI 交互壳 |
+| **纸质可读性** | 节点文字偏小 (11~12px)，打印发虚 | **自动字号加权 (+2.5px)**：正文自动提升至 14px~16.5px，小标题相应加权，确保印刷锐利 |
+| **连线遮挡问题** | 纯白不透明硬底粗暴遮盖背景连线 | **同色系半透明徽章**：小标题底色改为与文字同色系浅色（透明度 0.12~0.15），层次通透 |
+| **文本框溢出** | 字体加大后文字严重向左溢出 | **几何中心居中与动态扩宽**：计算文字真实排印宽度，标签框随字号动态等比扩宽，严格居中 |
+| **容器边缘闭合** | 视口紧贴导致虚线框底部被腰斩 | **智能 ViewBox 留白重算**：外围自适应扩展安全边距，虚线框与各泳道 100% 完整闭合 |
+| **箭头吸附遮盖** | 连线箭头被放大的节点边缘“吞没” | **端口锚点避让重算**：自动校准连接线端点几何吸附，杜绝箭头被变大框体压盖 |
+| **工具链割裂** | 无法直接被文档编译工具链集成 | **无缝融入 Typst/LaTeX 流水线**：输出 100% 独立且样式纯内联的 SVG，直接一键编译成书 |
 
 ---
 
-## 📂 技能包目录结构
+## 🎯 本 Skill 的核心用途 (Target Use Cases)
 
-```
-skills/archify/
-├── SKILL.md                 # Agent 技能主定义（提示词指令、设计规范与触发条件）
-├── README.md                # 本文档（原理、规格与使用说明）
-├── bin/                     # CLI 执行脚本 (archify.mjs 等)
-├── scripts/
-│   ├── export-clean-svg.mjs # 🌟 核心无头出版级纯净矢量转换引擎 (Puppeteer)
-│   ├── render-examples.mjs  # 示例批量渲染脚本
-│   └── check-render-output.mjs
-├── references/              # 规范参考文献库
-│   ├── publication-clean-svg.md  # 🌟 出版级纯净矢量转换规范
-│   ├── authoring-contract.md     # 声明式语法契约
-│   └── viewer-runtime.md         # 交互查看器运行时
-├── schemas/                 # JSON Schema 数据契约校验文件
-└── examples/                # 涵盖各图表类型的典型样例
-```
+1. **高校计算机/软件工程教材与教案编写**：
+   - 为纸质教材、实验指导书一键生成符合国家印刷标准的超高清黑白/彩色矢量拓扑插图。
+2. **科研基金申报书与重大研发计划方案**：
+   - 制作国家自然科学基金、省部级重大科技攻关项目的技术路线图、系统架构图与数据流闭环图。
+3. **顶级学术会议与期刊论文写作 (IEEE / ACM / CCF)**：
+   - 输出纯净、紧凑、文字清晰的矢量 SVG，无损导入 Typst / LaTeX 编译流程。
+4. **单一事实源 (SSOT) 自动化文档与 CI/CD**：
+   - 结合 AI Coding Agent，将技术规范 Markdown、DSL 架构代码与自动化构建紧密结合，每次提交自动重新渲染出版级插图并生成最新 PDF。
 
 ---
 
@@ -106,6 +84,27 @@ skills/archify/
 
 ---
 
+## 📂 技能包目录结构
+
+```
+skills/archify/
+├── SKILL.md                 # Agent 技能主定义（提示词指令、设计规范与触发条件）
+├── README.md                # 本文档（原理、规格与使用说明）
+├── bin/                     # CLI 执行脚本 (archify.mjs 等)
+├── scripts/
+│   ├── export-clean-svg.mjs # 🌟 核心无头出版级纯净矢量转换引擎 (Puppeteer / Chrome CDP)
+│   ├── render-examples.mjs  # 示例批量渲染脚本
+│   └── check-render-output.mjs
+├── references/              # 规范参考文献库
+│   ├── publication-clean-svg.md  # 🌟 出版级纯净矢量转换规范指南
+│   ├── authoring-contract.md     # 声明式语法契约
+│   └── viewer-runtime.md         # 交互查看器运行时
+├── schemas/                 # JSON Schema 数据契约校验文件
+└── examples/                # 涵盖各图表类型的典型脱敏样例
+```
+
+---
+
 ## 🚀 快速上手
 
 ### 1. 独立安装与运行
@@ -115,7 +114,7 @@ npm install
 ```
 
 ### 2. 导出出版级纯净 SVG (CLI)
-使用内置的无头转换脚本，将 Archify 生成的交互式 HTML 图表无损转为纯净 SVG：
+使用内置的无头转换脚本，将 Archify 生成的交互式 HTML 图表无损清洗为出版级纯净 SVG：
 ```bash
 # 将单个 HTML 转换为出版级 SVG
 node skills/archify/scripts/export-clean-svg.mjs diagram.html output-clean.svg
@@ -137,5 +136,5 @@ node skills/archify/scripts/export-clean-svg.mjs system.html system.svg --diagra
 
 ## 📜 开源协议
 
-本项目采用 **MIT** 协议。
+本项目脚本部分遵循 **MIT** 协议。
 南昌大学 AI 赋能教学团队 (NCU-AI-Educators) 维护升级。
