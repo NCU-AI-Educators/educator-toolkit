@@ -21,6 +21,9 @@
     *   `marp_to_multi_formats`: [一键生成备课资源](./marp_to_multi_formats/README.md) (讲义、逐字稿、教案)
     *   `NBP_watermark_remover`: [牛必配水印去除工具](./NBP_watermark_remover/README_Watermark_Remover.md)
     *   `md_to_styled_html`: [Markdown 阅读体验优化工具](./md_to_styled_html/README_CN.md) (生成排版精美、支持自动滚动的独立 HTML)
+*   **🧠 Skills**: 专为 AI Coding Agent (Antigravity / Claude Code / Cursor 等) 打造的专业技能包。[查看总览说明](./skills/README.md)
+    *   **[archify](./skills/archify/README.md)**: 现代系统架构、时序交互与工程图表可视化引擎。支持高维富交互 Web 探索与出版级纯净矢量（Clean SVG）导出。
+    *   **[typst](./skills/typst/README.md)**: 基于单一事实源 (SSOT) 哲学的学术教材与工业出版级 Typst/PDF 编译器。支持 A4 双面印刷装订排版、科技三线表与 Kroki 算力集成。
 
 ## 贡献指南
 欢迎各位老师提交 Pull Request 分享您的教学工具！
