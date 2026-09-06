@@ -1,6 +1,6 @@
 # Typst 出版级编译器技能 (Typst Publication Compiler Skill)
 
-> **基于单一事实源 (SSOT) 哲学的学术教材与工业出版级 Typst/PDF 自动化编译器**
+> **基于单一事实源 (SSOT) 哲学的学术教材与工业出版级 Typst/PDF/自适应长图 自动化编译器**
 
 [![Typst](https://img.shields.io/badge/Typst-v0.12+-239dad.svg)](https://typst.app/)
 [![License](https://img.shields.io/badge/license-AGPL%20v3-blue.svg)](LICENSE)
@@ -20,10 +20,16 @@
 
 ## ✨ 核心特性
 
-### 1. 经典 A4 双面印刷排版系统
-- **对称书脊边距**：遵循印刷装订工业标准，内侧留足装订裕量（内侧 `2.5cm`，外侧 `2.0cm`，上下 `2.5cm`）；
-- **动态奇偶页眉**：奇数页显示当前节标题并右对齐，偶数页显示文档总标题并左对齐，页脚统一显示动态页码 `页码 / 总页数`；
-- **高密度学术正文风格**：默认配置标准思源宋体/思源黑体（兼容 Noto Serif CJK SC / Noto Sans CJK SC），字号 10.5pt（五号字），1.5 倍行距，段首缩进两字符。
+### 1. 双模自适应排版体系 (Dual-Mode Publishing Engine)
+- **模式 A：经典 A4 双面印刷出版模式 (`book`，默认)**
+  - **对称书脊边距**：遵循印刷装订工业标准，内侧留足装订裕量（内侧 `2.5cm`，外侧 `2.0cm`，上下 `2.5cm`）；
+  - **动态奇偶页眉**：奇数页显示当前节标题并右对齐，偶数页显示文档总标题并左对齐，页脚统一显示动态页码 `页码 / 总页数`；
+  - **高密度学术正文风格**：默认配置标准思源宋体/思源黑体（兼容 Noto Serif CJK SC / Noto Sans CJK SC），字号 10.5pt（五号字），1.5 倍行距，段首缩进两字符。
+- **模式 B：移动端自适应无缝高清长图模式 (`long`)**
+  - **一镜到底连续版心**：`height: auto` 彻底消除物理跨页截断，正文、三线表、矢量架构图一镜到底连贯呈现；
+  - **移动端视觉体验优化**：采用无首行缩进（`0em`）、自然左对齐（`justify: false`）、高辨识度条目呼吸感间距；
+  - **受控版权尾注注记**：长图底部自动注入编制机构、受控版本与安全水印，规范合规；
+  - **矢量无损超清光栅化**：支持 150～300 PPI 动态指定，一键输出微信、钉钉群与技术博客极速分享的高清无损 PNG。
 
 ### 2. 科技论文三线表排版引擎与“图下表上”规范
 - **严格遵循“图下表上”国家出版规范**：遵循 GB/T 7713 标准，**表题居于表格正上方，图题居于图件正下方**。表格正上方必须配有标准居中表名（如 `表 1-1 ...`，9pt，斜体，`#475569`），与图件下方的图名注记形成系统性出版设计；
@@ -90,7 +96,9 @@ skills/typst/
   > *“请使用 Typst 技能，将当前的 `docs/SHAILAB子项目技术方案设计.ssot.md` 转换为符合 A4 双面印刷标准的出版级教材 PDF，生成奇偶页动态页眉并对称留出书脊装订裕量。”*
 - **场景 B：带有高级数学公式与科技三线表的规范排版**
   > *“这份 Markdown 文档中包含不少排队论 LaTeX 公式和复杂数据表格，请用 Typst 技能进行编译，确保三线表单元格不溢出页面，公式中的变量无多余双引号包裹。”*
-- **场景 C：与 Archify 联动的图文全自动流水线**
+- **场景 C：移动端自适应技术长图无缝生成**
+  > *“请使用 Typst 技能将这篇技术文档转为无缝高清长图 PNG，适合在微信手机端阅读，不要有物理分页撕裂感。”*
+- **场景 D：与 Archify 联动的图文全自动流水线**
   > *“请先调用 Archify 帮我绘制本项目的系统微服务架构图并导出纯净 SVG，随后使用 Typst 将整篇设计方案与架构图编译为 A4 双面出版级 PDF 文档！”*
 
 ### 2. 斜杠命令直接调用 (Slash Commands)
@@ -98,13 +106,16 @@ skills/typst/
 若您倾向于使用快捷指令，可直接在 Agent 聊天框中键入：
 
 ```bash
-# 1. 极简直接编译（默认输出同名 PDF）
+# 1. 极简直接编译为 A4 印刷双面 PDF（默认输出同名 PDF）
 /typst docs/课程讲义.ssot.md
 
-# 2. 显式指定目标输出路径
-/typst compile docs/方案设计.ssot.md output/方案设计.pdf
+# 2. 一键编译为移动端无缝高清长图 (PNG)
+/typst docs/技术方案.ssot.md output/技术方案.png
 
-# 3. 定制书脊装订裕量（厚本教材印刷专用）
+# 3. 显式指定模式与超清清晰度 (300 PPI)
+/typst docs/技术方案.ssot.md output/技术方案.png --long --ppi 300
+
+# 4. 定制厚本教材书脊装订裕量
 /typst docs/实训教材.ssot.md --margin-inner 28mm
 ```
 
@@ -124,14 +135,22 @@ cargo install --locked typst-cli
 
 ### 2. 命令行执行
 
-运行转换脚本将 SSOT Markdown 转换为 Typst 源码：
+**方式一：一键自动编译（推荐）**
 ```bash
-python3 skills/typst/scripts/ssot_to_typst.py input.ssot.md output.typ
+# 生成 A4 出版级双面 PDF（自动调用 typst compile）
+python3 skills/typst/scripts/ssot_to_typst.py input.ssot.md output.pdf
+
+# 生成移动端自适应无缝高清长图 PNG（自动识别 .png 后缀并按 200 PPI 渲染）
+python3 skills/typst/scripts/ssot_to_typst.py input.ssot.md output.png
 ```
 
-使用 Typst 编译器一键生成高质量矢量 PDF：
+**方式二：两步分步编译（供进阶排版调试）**
 ```bash
-typst compile output.typ output.pdf
+# 1. 生成长图模式 Typst 源码
+python3 skills/typst/scripts/ssot_to_typst.py input.ssot.md output.typ --mode long
+
+# 2. 调用 typst CLI 光栅化为单张高清长图
+typst compile output.typ output.png --ppi 200
 ```
 
 ---
@@ -139,6 +158,9 @@ typst compile output.typ output.pdf
 ## 🛠️ 高级参数配置
 
 转换脚本内置支持以下控制参数：
+- `--mode [book|long]`：排版模式选择，`book` 为 A4 双面印刷册（默认），`long` 为移动端自适应无缝长图；
+- `--long` / `-l`：快捷开启自适应长图模式；
+- `--ppi <int>`：长图光栅化像素密度（默认为 `200`，支持设置为 `300` 获得超清印刷级位图）；
 - `--clean-svg-dir`：指定 Archify / Kroki 生成的本地 SVG 缓存目录；
 - `--kroki-url`：指定 Kroki 服务端点（默认为 `http://localhost:8000` 或本地容器）；
 - `--margin-inner` / `--margin-outer`：动态定制装订线边距；

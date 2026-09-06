@@ -19,6 +19,7 @@ import sys
 import re
 import yaml
 import hashlib
+import argparse
 import subprocess
 import urllib.request
 from pathlib import Path
@@ -369,8 +370,8 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
     typ_table.append("]]")
     return "\n".join(typ_table)
 
-def convert_ssot_to_typst(md_path: str) -> str:
-    """核心转换函数：生成符合双面出版级调优规范与顶级元数据排版的 Typst 源码"""
+def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
+    """核心转换函数：生成符合双面出版级调优规范或移动端自适应长图规范的 Typst 源码"""
     with open(md_path, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -415,9 +416,48 @@ def convert_ssot_to_typst(md_path: str) -> str:
     formatted_author = format_org_cell(metadata['author'])
     formatted_inst = format_org_cell(metadata['institution']).replace("@", '#"@"')
 
-    # 2. 构建调优版双面印刷 Typst 模板头
+    # 2. 构建调优版双模 Typst 模板头
     typ_lines = []
-    typ_lines.append(f"""// ==============================================================================
+    if mode == "long":
+        typ_lines.append(f"""// ==============================================================================
+// NCU Smart Platform - 全场景技术文档生产线 (自适应无缝长图模式)
+// 编译核心: Typst 0.15+ | 算力画图: 4090 Kroki 引擎
+// 研制机构: {metadata['institution']}
+// ==============================================================================
+
+#set page(
+  width: 210mm,
+  height: auto,
+  margin: (x: 20mm, y: 18mm),
+  fill: rgb("#ffffff"),
+  header: none,
+  footer: none,
+)
+
+#set text(
+  font: ("PingFang SC", "Heiti SC", "Songti SC"),
+  size: 10pt,
+  lang: "zh"
+)
+
+// 中文粗体规范
+#show strong: set text(font: ("Times New Roman", "PingFang SC", "Heiti SC", "STHeiti", "SimHei"), weight: "bold", fill: rgb("#0f172a"))
+
+// 自适应长图排版：自然阅读左对齐无两端拉伸
+#set par(
+  justify: false,
+  leading: 0.82em,
+  spacing: 0.85em,
+  first-line-indent: (amount: 0em, all: true)
+)
+
+// 列表与正文对齐规范
+#set list(indent: 0.5em, body-indent: 0.5em, spacing: 0.75em)
+#set enum(indent: 0.5em, body-indent: 0.5em, spacing: 0.75em)
+#show list: set block(above: 0.75em, below: 0.75em)
+#show enum: set block(above: 0.75em, below: 0.75em)""")
+    else:
+        typ_lines.append(f"""// ==============================================================================
 // NCU Smart Platform - A4 出版级技术规范双面排版系统 (SSOT 调优版)
 // 编译核心: Typst 0.15+ | 算力画图: 4090 Kroki 引擎
 // 研制机构: {metadata['institution']}
@@ -498,8 +538,9 @@ def convert_ssot_to_typst(md_path: str) -> str:
   numbering: "(1)"
 )
 #show list: set block(above: 0.85em, below: 0.85em)
-#show enum: set block(above: 0.85em, below: 0.85em)
+#show enum: set block(above: 0.85em, below: 0.85em)""")
 
+    typ_lines.append(f"""
 // 图表原生编号样式优化（去除默认额外 supplement）
 #show figure.where(kind: image): set figure(supplement: none, numbering: none)
 
@@ -1220,55 +1261,105 @@ def convert_ssot_to_typst(md_path: str) -> str:
         else:
             typ_lines.append(f"\n{tbl_rendered}\n")
 
+    if mode == "long":
+        escaped_inst = metadata['institution'].replace("@", '#"@"')
+        typ_lines.append(f"""
+#v(1.2em)
+#line(length: 100%, stroke: 0.5pt + rgb("#e2e8f0"))
+#v(0.3em)
+#align(center)[
+  #text(size: 8.5pt, fill: rgb("#94a3b8"))[{escaped_inst} · 出版级技术规范]
+]
+""")
+
     return "\n".join(typ_lines)
 
 def main():
-    if len(sys.argv) < 2:
-        print("用法: python3 ssot_to_typst.py <input.ssot.md> [output.pdf]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="【单一事实源 (SSOT) 出版级 Typst/PDF 编译器】支持 A4 双面印刷册与自适应高清长图双模输出",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("input", help="输入 SSOT Markdown 文件路径 (*.ssot.md 或 *.md)")
+    parser.add_argument("output", nargs="?", default=None, help="目标输出文件路径 (.pdf, .typ, .png)")
+    parser.add_argument("--mode", "-m", choices=["book", "long"], default=None, help="排版模式:\n  book: A4 双面印刷册 (默认)\n  long: 移动端自适应无缝高清长图")
+    parser.add_argument("--long", "-l", action="store_true", help="快捷开关: 直接启用移动端自适应长图模式")
+    parser.add_argument("--ppi", type=int, default=200, help="输出长图或预览图片的渲染像素密度 (默认: 200 PPI)")
 
-    in_md = os.path.abspath(sys.argv[1])
+    args = parser.parse_args()
+
+    in_md = os.path.abspath(args.input)
     if not os.path.exists(in_md):
         print(f"❌ 错误: 找不到输入文件 {in_md}")
         sys.exit(1)
 
-    if len(sys.argv) > 2:
-        arg2 = os.path.abspath(sys.argv[2])
-        if arg2.endswith(".typ"):
-            out_typ = arg2
-            out_pdf = arg2[:-4] + ".pdf"
-        elif arg2.endswith(".pdf"):
-            out_pdf = arg2
-            out_typ = arg2[:-4] + ".typ"
+    # 确定编译模式
+    mode = args.mode
+    if args.long:
+        mode = "long"
+    elif mode is None:
+        if args.output and args.output.lower().endswith(".png"):
+            mode = "long"
         else:
-            out_pdf = arg2 + ".pdf"
-            out_typ = arg2 + ".typ"
-    else:
-        out_pdf = in_md.replace(".ssot.md", ".pdf").replace(".md", ".pdf")
-        out_typ = out_pdf.replace(".pdf", ".typ")
+            mode = "book"
 
-    print(f"📄 [SSOT-to-Typst] 正在解析: {in_md} ...")
-    typst_code = convert_ssot_to_typst(in_md)
+    # 确定输出目标路径
+    if args.output:
+        out_target = os.path.abspath(args.output)
+    else:
+        if mode == "long":
+            out_target = in_md.replace(".ssot.md", ".png").replace(".md", ".png")
+        else:
+            out_target = in_md.replace(".ssot.md", ".pdf").replace(".md", ".pdf")
+
+    # 派生 typ 路径
+    if out_target.endswith(".typ"):
+        out_typ = out_target
+    elif out_target.endswith(".pdf"):
+        out_typ = out_target[:-4] + ".typ"
+    elif out_target.endswith(".png"):
+        out_typ = out_target[:-4] + ".typ"
+    else:
+        out_typ = out_target + ".typ"
+
+    mode_label = "自适应无缝长图 (PNG)" if mode == "long" else "A4 双面出版册 (PDF)"
+    print(f"📄 [SSOT-to-Typst] 正在解析: {in_md} (模式: {mode_label}) ...")
+    typst_code = convert_ssot_to_typst(in_md, mode=mode)
 
     with open(out_typ, "w", encoding="utf-8") as f:
         f.write(typst_code)
     print(f"✍️  [SSOT-to-Typst] 已生成 Typst 源码: {out_typ}")
 
-    print(f"⚡ [SSOT-to-Typst] 正在调用 Typst 0.15 编译矢量 PDF ...")
     try:
         root_dir = os.path.commonpath([os.path.abspath(out_typ), os.getcwd()])
     except Exception:
         root_dir = os.path.dirname(os.path.abspath(out_typ))
-    cmd = f"typst compile --root \"{root_dir}\" \"{out_typ}\" \"{out_pdf}\""
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-    if res.returncode != 0:
-        print(f"❌ 编译失败:\n{res.stderr}")
-        sys.exit(1)
+    if mode == "long":
+        out_png = out_target if out_target.endswith(".png") else out_typ[:-4] + ".png"
+        print(f"⚡ [SSOT-to-Typst] 正在调用 Typst 0.15 渲染自适应高清长图 ({args.ppi} PPI) ...")
+        cmd = f"typst compile --root \"{root_dir}\" \"{out_typ}\" \"{out_png}\" --ppi {args.ppi}"
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 
-    file_size_kb = round(os.path.getsize(out_pdf) / 1024, 1)
-    print(f"✅ [SSOT-to-Typst] 出版级双面教材规范编译成功！")
-    print(f"📦 产物路径: {out_pdf} ({file_size_kb} KB)")
+        if res.returncode != 0:
+            print(f"❌ 渲染长图失败:\n{res.stderr}")
+            sys.exit(1)
+
+        file_size_kb = round(os.path.getsize(out_png) / 1024, 1)
+        print(f"✅ [SSOT-to-Typst] 自适应无缝高清长图编译成功！")
+        print(f"📦 产物路径: {out_png} ({file_size_kb} KB)")
+    else:
+        out_pdf = out_target if out_target.endswith(".pdf") else out_typ[:-4] + ".pdf"
+        print(f"⚡ [SSOT-to-Typst] 正在调用 Typst 0.15 编译矢量 PDF ...")
+        cmd = f"typst compile --root \"{root_dir}\" \"{out_typ}\" \"{out_pdf}\""
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+
+        if res.returncode != 0:
+            print(f"❌ 编译失败:\n{res.stderr}")
+            sys.exit(1)
+
+        file_size_kb = round(os.path.getsize(out_pdf) / 1024, 1)
+        print(f"✅ [SSOT-to-Typst] 出版级双面教材规范编译成功！")
+        print(f"📦 产物路径: {out_pdf} ({file_size_kb} KB)")
 
 if __name__ == "__main__":
     main()
