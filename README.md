@@ -28,6 +28,13 @@
 ## 贡献指南
 欢迎各位老师提交 Pull Request 分享您的教学工具！
 
+## 关注与交流
+欢迎关注南昌大学 AI 创新应用实验室（AIIA Lab@NCU）官方公众号，获取最新 AI 教学实践、工具链更新与前沿动态：
+
+<p align="center">
+  <img src="assets/wechat_promo_card.png" alt="南昌大学 AIIA Lab 官方公众号" width="460">
+</p>
+
 ## 协议
 本项目代码脚本采用 **AGPL v3** 协议。
 Prompt 文本与文档内容遵循 **CC BY-NC-SA 4.0** 协议。
