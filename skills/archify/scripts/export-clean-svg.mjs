@@ -139,7 +139,7 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
           if (textFill && textFill !== 'none') {
             target.setAttribute('fill', textFill);
           } else {
-            target.setAttribute('fill', '${theme}' === 'dark' ? '#f8fafc' : '#0f172a');
+            target.setAttribute('fill', '#0f172a');
           }
           target.setAttribute('stroke', 'none');
           target.setAttribute('font-family', 'PingFang SC, "Microsoft YaHei", Arial, sans-serif');
@@ -209,16 +209,66 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
       var styleNodes = clone.querySelectorAll('style');
       styleNodes.forEach(function(s) { s.remove(); });
 
-      // 4. 清理死白视口裁剪与边界
-      var isFig3 = clone.querySelector('rect.c-lane') !== null;
-      if (isFig3) {
-        clone.setAttribute('viewBox', '0 0 1080 465');
-        Array.from(clone.querySelectorAll('rect.c-lane')).forEach(function(lane) {
-          lane.setAttribute('height', '396');
-        });
-      } else {
-        clone.setAttribute('viewBox', '0 0 1080 620');
+      // 4. 通用自适应视口边界与留白重算，确保虚线泳道框完整闭合无裁切
+      var origViewBox = svg.getAttribute('viewBox');
+      var vbMinX = 0, vbMinY = 0, vbWidth = 1080, vbHeight = 620;
+      if (origViewBox) {
+        var parts = origViewBox.trim().split(/[\s,]+/).map(Number);
+        if (parts.length === 4 && !parts.some(isNaN)) {
+          vbMinX = parts[0];
+          vbMinY = parts[1];
+          vbWidth = parts[2];
+          vbHeight = parts[3];
+        }
       }
+
+      try {
+        var bbox = svg.getBBox();
+        var maxY = bbox.y + bbox.height;
+        var maxX = bbox.x + bbox.width;
+        var minY = bbox.y;
+        var minX = bbox.x;
+
+        // 进一步探测虚线泳道框、生命线与背景容器的绝对下边界
+        var allLanes = svg.querySelectorAll('rect.c-lane, rect.c-boundary, rect.c-container, line.c-lifeline');
+        allLanes.forEach(function(r) {
+          var y = parseFloat(r.getAttribute('y') || r.getAttribute('y1') || '0');
+          var h = parseFloat(r.getAttribute('height') || '0');
+          var y2 = parseFloat(r.getAttribute('y2') || '0');
+          var bottom = Math.max(y + h, y2);
+          var x = parseFloat(r.getAttribute('x') || r.getAttribute('x1') || '0');
+          var w = parseFloat(r.getAttribute('width') || '0');
+          var x2 = parseFloat(r.getAttribute('x2') || '0');
+          var right = Math.max(x + w, x2);
+
+          if (!isNaN(bottom) && bottom > maxY) maxY = bottom;
+          if (!isNaN(right) && right > maxX) maxX = right;
+          if (!isNaN(y) && y < minY) minY = y;
+          if (!isNaN(x) && x < minX) minX = x;
+        });
+
+        // 确保顶部与左侧有安全裕量
+        if (minX < vbMinX + 12) {
+          var diffX = (vbMinX + 12) - minX;
+          vbMinX -= diffX;
+          vbWidth += diffX;
+        }
+        if (minY < vbMinY + 12) {
+          var diffY = (vbMinY + 12) - minY;
+          vbMinY -= diffY;
+          vbHeight += diffY;
+        }
+
+        // 确保底部与右侧留出充足的呼吸留白（30px），保证虚线边框与端点无损闭合
+        var requiredWidth = maxX - vbMinX + 28;
+        var requiredHeight = maxY - vbMinY + 32;
+        vbWidth = Math.max(vbWidth, Math.ceil(requiredWidth));
+        vbHeight = Math.max(vbHeight, Math.ceil(requiredHeight));
+      } catch (e) {
+        vbHeight += 30;
+      }
+
+      clone.setAttribute('viewBox', [vbMinX, vbMinY, vbWidth, vbHeight].join(' '));
 
       // 5. 清除交互状态与外层控制属性
       clone.style.removeProperty('transform');
