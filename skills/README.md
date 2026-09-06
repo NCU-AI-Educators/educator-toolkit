@@ -59,7 +59,59 @@
 
 ---
 
-## 🛠️ 如何在您的 AI Agent 中使用
+## 💬 智能体调用指南：如何触发与使用这两大 Skill (User Invocation Guide)
+
+对于使用 AI 编程助手（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Windsurf**、**Cline** 等）的普通用户与教育者，无需记忆底层复杂的脚本路径与终端参数，智能体原生支持两种极简的调用方式：**自然语言智能触发** 与 **斜杠命令（Slash Command）精准调度**。
+
+### 方式一：自然语言触发（AI 智能识别，零记忆成本）
+
+智能体已预加载各技能的意图识别契约，您只需像日常对话一样描述需求，AI 会自动识别并激活对应的 Skill：
+
+#### 🎨 触发 Archify 绘图技能
+- **绘制系统架构**：
+  > *“帮我画一张电商订单系统的云架构图，包含网关、认证服务、订单微服务、Redis 缓存与 PostgreSQL 数据库，并导出为出版级清晰的纯净 SVG。”*
+- **绘制时序交互**：
+  > *“请画一张时序图，展示前端调用 API 登录、JWT 验证、写入缓存和查询数据库的完整调用链路。”*
+- **Mermaid 转换美化**：
+  > *“把我文档中这段粗糙的 Mermaid 架构图转换美化为出版级 Archify 矢量图。”*
+- **学术插图纯净导出**：
+  > *“将刚才生成的 HTML 图表清洗导出为无外壳、字号放大的出版级 Clean SVG，供论文排版使用。”*
+
+#### 📄 触发 Typst 排版与编译技能
+- **教案/文档一键转教材**：
+  > *“请使用 Typst 技能，将当前的 `docs/方案设计.ssot.md` 排版编译为符合高校教材标准的 A4 双面矢量 PDF。”*
+- **公式与三线表规范排版**：
+  > *“帮我把这份带有 LaTeX 复杂数学公式和三线表的教案编译成双面印刷 PDF，注意奇偶页眉和书脊装订边距。”*
+- **两技能联动（图文一键成书）**：
+  > *“请先调用 Archify 帮我绘制微服务架构图并导出纯净 SVG，随后使用 Typst 将整篇设计方案与架构图编译为 A4 双面出版级 PDF 文档！”*
+
+---
+
+### 方式二：斜杠命令方式直接调用（Slash Commands，直达目标）
+
+在支持斜杠命令的 Agent（如 Antigravity IDE、Claude Code、Cursor Composer 等）中，可以直接在对话框中键入斜杠命令，直达特定技能任务：
+
+#### 1. Archify 绘图斜杠命令
+| 命令形式 | 典型调用示例 | 效果说明 |
+| :--- | :--- | :--- |
+| `/archify [类型] [需求描述]` | `/archify architecture 微服务云原生拓扑，含负载均衡、FastAPI、Redis 与 Postgres` | 直接生成可交互的架构拓扑 HTML |
+| `/archify sequence [时序过程]` | `/archify sequence 用户下单、库存扣减、支付回调的时序流程` | 生成符合规范的分布式时序图 |
+| `/archify clean [html路径]` | `/archify clean docs/figures/arch.html` | 一键清洗并提取出出版级纯净 SVG |
+| `/archify convert [mermaid/代码]`| `/archify convert docs/diagrams/legacy.mmd` | 智能升级现有 Mermaid 图表为 Archify |
+
+#### 2. Typst 编译斜杠命令
+| 命令形式 | 典型调用示例 | 效果说明 |
+| :--- | :--- | :--- |
+| `/typst [文档路径]` | `/typst docs/技术方案.ssot.md` | 一键解析并生成 Typst 源码与 A4 双面 PDF |
+| `/typst compile [md文件] [pdf路径]` | `/typst compile docs/lecture-01.md output/lecture-01.pdf` | 指定输出路径进行出版级编译 |
+| `/typst [文档路径] --margin-inner [值]`| `/typst docs/book.md --margin-inner 28mm` | 针对厚本书脊装订定制边距并编译 |
+
+> 💡 **智能体工作机制提示**：
+> 当您键入 `/archify` 或输入涉及“架构图/时序图/拓扑/可视化”的意图时，智能体会加载 `skills/archify/SKILL.md`；当您键入 `/typst` 或输入涉及“排版/编译/教材/PDF/三线表”的意图时，智能体会加载 `skills/typst/SKILL.md`。两者既可独立调用，亦可在单轮对话中无缝串联。
+
+---
+
+## 🛠️ 如何在您的 AI Agent 中安装与配置
 
 ### 1. Google Antigravity / Gemini CLI
 将技能目录克隆或软链接至 Agent 技能根目录：

@@ -105,7 +105,44 @@ skills/archify/
 
 ---
 
-## 🚀 快速上手
+## 💬 智能体交互指南：自然语言与斜杠命令 (Prompt & Slash Commands)
+
+在配置了 Archify 技能的 AI 智能体（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Windsurf** 等）中，普通用户无需手动编写复杂的 JSON 建模或调用 Node 脚本，直接通过自然语言或斜杠命令即可完成全套图表的设计与无缝导出：
+
+### 1. 自然语言交互提示词 (Prompt Templates)
+
+您只需在对话框中直接描述业务或技术需求，AI Agent 会自动匹配并调度 Archify 技能：
+
+- **场景 A：系统架构拓扑设计（带出版级矢量导出）**
+  > *“请使用 Archify 技能，为我的系统绘制一张云原生架构拓扑图。包含客户端、API Gateway、认证中心、两台微服务业务节点，以及 Redis 缓存与 PostgreSQL 数据库。要求配色具有现代科技感，并同步导出无外壳的出版级纯净 Clean SVG。”*
+- **场景 B：复杂业务调用时序图**
+  > *“请帮我画一张时序图，展示 OAuth2 + PKCE 授权码模式的时序链路：SPA 前端、授权服务器、API 资源网关与用户数据源之间的重定向、Token 交换与 JWT 验签过程。”*
+- **场景 C：已有 Mermaid 图表美化与升级**
+  > *“我这有一段老旧的 Mermaid 架构图（粘贴代码），图例和线条比较单调。请用 Archify 重新设计为模块化拓扑，并优化字号以供论文插图使用。”*
+- **场景 D：已有 HTML 图表一键清洗导出**
+  > *“请将我刚才生成的 `figures/cloud-architecture.html` 转换为去除所有浏览器交互外壳、字号放大的出版级 Clean SVG。”*
+
+### 2. 斜杠命令直接调用 (Slash Commands)
+
+对于追求效率的用户，可以直接在 Agent 聊天框中使用斜杠命令快速调度：
+
+```bash
+# 1. 架构拓扑生成
+/archify architecture 设计高可用分布式存储系统，包含协调节点、数据节点与备份服务
+
+# 2. 业务时序图生成
+/archify sequence 用户下单、库存冻结、支付回调与超时取消的时序流程
+
+# 3. 提取出版级纯净 SVG
+/archify clean docs/figures/system-architecture.html
+
+# 4. 转换指定 Mermaid 文件
+/archify convert docs/diagrams/legacy.mmd
+```
+
+---
+
+## 🚀 快速上手 (本地 CLI 模式)
 
 ### 1. 独立安装与运行
 ```bash

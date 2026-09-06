@@ -77,7 +77,39 @@ skills/typst/
 
 ---
 
-## 🚀 快速上手
+## 💬 智能体交互指南：自然语言与斜杠命令 (Prompt & Slash Commands)
+
+在配置了 Typst 技能的 AI 智能体（如 **Google Antigravity**、**Claude Code**、**Cursor**、**Windsurf** 等）中，普通用户无需直接操作 Python 脚本与编译参数，直接通过自然语言或斜杠命令即可一键完成排版与 PDF 编译：
+
+### 1. 自然语言交互提示词 (Prompt Templates)
+
+直接向 Agent 输入以下风格的指令，AI 会自动识别并调度 Typst 编译器：
+
+- **场景 A：单篇文档一键出版为 A4 双面教材**
+  > *“请使用 Typst 技能，将当前的 `docs/SHAILAB子项目技术方案设计.ssot.md` 转换为符合 A4 双面印刷标准的出版级教材 PDF，生成奇偶页动态页眉并对称留出书脊装订裕量。”*
+- **场景 B：带有高级数学公式与科技三线表的规范排版**
+  > *“这份 Markdown 文档中包含不少排队论 LaTeX 公式和复杂数据表格，请用 Typst 技能进行编译，确保三线表单元格不溢出页面，公式中的变量无多余双引号包裹。”*
+- **场景 C：与 Archify 联动的图文全自动流水线**
+  > *“请先调用 Archify 帮我绘制本项目的系统微服务架构图并导出纯净 SVG，随后使用 Typst 将整篇设计方案与架构图编译为 A4 双面出版级 PDF 文档！”*
+
+### 2. 斜杠命令直接调用 (Slash Commands)
+
+若您倾向于使用快捷指令，可直接在 Agent 聊天框中键入：
+
+```bash
+# 1. 极简直接编译（默认输出同名 PDF）
+/typst docs/课程讲义.ssot.md
+
+# 2. 显式指定目标输出路径
+/typst compile docs/方案设计.ssot.md output/方案设计.pdf
+
+# 3. 定制书脊装订裕量（厚本教材印刷专用）
+/typst docs/实训教材.ssot.md --margin-inner 28mm
+```
+
+---
+
+## 🚀 快速上手 (本地 CLI 模式)
 
 ### 1. 环境准备
 确保机器已安装 `Python 3.10+` 以及 `Typst` CLI：
@@ -100,10 +132,6 @@ python3 skills/typst/scripts/ssot_to_typst.py input.ssot.md output.typ
 ```bash
 typst compile output.typ output.pdf
 ```
-
-### 3. 与 Agent 协同
-将本技能目录配置于 AI Agent（如 Antigravity IDE、Claude Code 或 Cursor）的技能根路径中。在与 Agent 对话时直接呼叫：
-> *"请使用 typst 技能，将当前的 `docs/方案设计.ssot.md` 转换为符合 A4 双面印刷标准的 PDF。"*
 
 ---
 
