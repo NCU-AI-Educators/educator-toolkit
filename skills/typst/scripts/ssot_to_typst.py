@@ -330,7 +330,9 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
     elif num_cols == 5:
         col_spec = "(1fr, 1.4fr, 2fr, 3fr, 3fr)"
     elif num_cols == 6:
-        col_spec = "(1fr, 1fr, 1.6fr, 2.8fr, 3fr, 3fr)"
+        col_spec = "(0.7fr, 1.8fr, 2fr, 0.7fr, 3.8fr, 1fr)"
+    elif num_cols == 7:
+        col_spec = "(0.55fr, 1.5fr, 1.6fr, 0.55fr, 2.1fr, 3.8fr, 0.9fr)"
     else:
         col_spec = f"({', '.join(['1fr']*num_cols)})"
 
