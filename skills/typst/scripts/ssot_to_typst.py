@@ -292,6 +292,49 @@ def format_inline_markdown(text: str) -> str:
 
     return text
 
+def estimate_text_visual_width(text: str) -> int:
+    """估算单元格文本的单行最大视觉排版宽度（中文计2，英文数字计1，消除markdown语法与换行干扰）"""
+    clean = re.sub(r'\*\*|__|\*|_|`', '', text)
+    clean = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', clean)
+    clean = re.sub(r'<.*?>', ' ', clean)
+    lines = re.split(r'<br\s*/?>|\n', clean)
+    max_w = 0
+    for l in lines:
+        w = sum(2 if ord(ch) > 127 else 1 for ch in l.strip())
+        if w > max_w:
+            max_w = w
+    return max(max_w, 1)
+
+def calculate_dynamic_col_spec(content_rows: list) -> str:
+    """基于表格真实内容密度，动态自适应计算 Typst 出版级列宽比例 (col_spec)"""
+    num_cols = len(content_rows[0])
+    if num_cols <= 1:
+        return "(1fr,)"
+    
+    col_scores = []
+    for c in range(num_cols):
+        header_w = estimate_text_visual_width(content_rows[0][c])
+        data_widths = [estimate_text_visual_width(r[c]) for r in content_rows[1:] if len(r) > c and r[c].strip()]
+        if not data_widths:
+            score = header_w
+        else:
+            avg_w = sum(data_widths) / len(data_widths)
+            max_w = max(data_widths)
+            score = max(header_w * 0.9, avg_w * 0.65 + max_w * 0.35)
+        col_scores.append(score)
+    
+    # 0.62 次幂非线性平滑：压缩极端落差，保护窄列，舒展长列
+    smoothed = [max(s, 2.0) ** 0.62 for s in col_scores]
+    min_val = min(smoothed)
+    base_scale = 0.75 / min_val
+    frs = [round(min(max(v * base_scale, 0.6), 3.8), 2) for v in smoothed]
+    
+    # 全列差异极小时 (< 15%) 平权输出
+    if max(frs) - min(frs) < 0.2:
+        return f"({', '.join(['1fr']*num_cols)})"
+    
+    return f"({', '.join([f'{f}fr' for f in frs])})"
+
 def parse_markdown_table_to_typst(table_text: str) -> str:
     """符合调优标准的科技三线表（带表头双线与无缩进单元格）"""
     lines = [l.strip() for l in table_text.strip().split("\n") if l.strip()]
@@ -321,20 +364,8 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
         while len(r) < num_cols:
             r.append("")
 
-    if num_cols == 2:
-        col_spec = "(1.5fr, 4fr)"
-    elif num_cols == 3:
-        col_spec = "(1.5fr, 2.5fr, 4fr)"
-    elif num_cols == 4:
-        col_spec = "(1.2fr, 2fr, 3.8fr, 3.8fr)"
-    elif num_cols == 5:
-        col_spec = "(1fr, 1.4fr, 2fr, 3fr, 3fr)"
-    elif num_cols == 6:
-        col_spec = "(0.7fr, 1.8fr, 2fr, 0.7fr, 3.8fr, 1fr)"
-    elif num_cols == 7:
-        col_spec = "(0.55fr, 1.5fr, 1.6fr, 0.55fr, 2.1fr, 3.8fr, 0.9fr)"
-    else:
-        col_spec = f"({', '.join(['1fr']*num_cols)})"
+    # 内容感知自适应列宽分配（取代所有特定列数的硬编码）
+    col_spec = calculate_dynamic_col_spec(content_rows)
 
     num_rows = len(content_rows)
     if num_rows == 1:
