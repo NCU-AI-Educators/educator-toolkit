@@ -859,11 +859,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 
                         typ_lines.append(f"""
 #block(width: 100%, breakable: false)[
-  #align(center)[#block(width: 96%)[
+  #align(center)[
     #figure(
-      image("{rel_img}", width: 92%)
+      image("{rel_img}", width: 100%)
     )
-  ]]
+  ]
   {caption_snippet}
 ]
 """)
@@ -1210,11 +1210,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 """
             typ_lines.append(f"""
 #block(width: 100%, breakable: false)[
-  #align(center)[#block(width: 96%)[
+  #align(center)[
     #figure(
-      image("{img_path}", width: 92%)
+      image("{img_path}", width: 100%)
     )
-  ]]
+  ]
   {caption_block}
 ]
 """)

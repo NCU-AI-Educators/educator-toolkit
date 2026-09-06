@@ -128,11 +128,11 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
                   target.setAttribute('width', newW.toString());
                   target.setAttribute('x', (textCenterX - newW / 2).toString());
 
-                  var minPillH = Math.max(parseFloat(orig.getAttribute('height') || '16'), 17);
+                  var minPillH = Math.max(parseFloat(orig.getAttribute('height') || '24'), 24);
                   target.setAttribute('height', minPillH.toString());
                   var textCenterY = tb.y + tb.height / 2;
                   target.setAttribute('y', (textCenterY - minPillH / 2).toString());
-                  target.setAttribute('rx', '4');
+                  target.setAttribute('rx', '5');
                 }
               }
             } catch (e) {}
@@ -166,86 +166,104 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
           target.setAttribute('stroke', 'none');
           target.setAttribute('font-family', 'PingFang SC, "Microsoft YaHei", Arial, sans-serif');
 
-          // 直接读取 HTML 重构后的字号与字重，并应用出版级保底阈值
+          // 出版级字号重塑引擎 (Publication-Grade Typography Scaling)
           var origAttrSize = parseFloat(orig.getAttribute('font-size'));
           var csSize = parseFloat(cs.fontSize);
-          var newSize = origAttrSize || csSize || 14.0;
+          var curSize = origAttrSize || csSize || 12.0;
           var weight = orig.getAttribute('font-weight') || cs.fontWeight || '600';
           var textContent = orig.textContent.trim();
 
-          // 检查是否属于时序图参与者节点（Sequence participant）或者小卡片容器
           var participantG = orig.closest && (
             orig.closest('g[data-node-context="Sequence participant"]') ||
             orig.closest('g[data-node-context*="participant"]') ||
-            orig.closest('g[id^="node-"]')
+            orig.closest('g[id^="node-"]') ||
+            orig.closest('g[data-node-id]')
           );
 
-          if (participantG) {
-            var cardRect = participantG.querySelector('rect');
-            var cardW = cardRect ? parseFloat(cardRect.getAttribute('width') || '86') : 86;
-            // 当卡片宽度小于等于 100px 时（时序图顶部参与者节点，如 86x54）
-            if (cardW <= 100) {
-              if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
-                newSize = 12.0;
-                weight = '700';
-              } else if (orig.getAttribute('data-detail') === 'context' || orig.classList.contains('t-muted')) {
-                newSize = 8.0;
-                weight = '500';
-                target.setAttribute('fill', 'rgb(71, 85, 105)');
-              }
-            } else {
-              // 架构图组件节点（标准尺寸通常为 120px~150px）
-              if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
-                newSize = 13.5;
-                weight = '700';
-              } else if (orig.getAttribute('data-detail') === 'context') {
-                newSize = 9.5;
-                weight = '600';
-                if (textFill.includes('100, 116, 139') || textFill.includes('148, 163, 184')) {
-                  target.setAttribute('fill', 'rgb(51, 65, 85)');
-                }
-              }
-            }
-          } else if (orig.hasAttribute('data-stage-label')) {
-            newSize = 16.0;
+          var newSize = curSize;
+
+          if (orig.hasAttribute('data-stage-label') || orig.classList.contains('t-stage')) {
+            newSize = Math.max(curSize, 18.0);
             weight = '800';
             target.setAttribute('fill', 'rgb(30, 64, 175)');
           } else if (orig.hasAttribute('data-boundary-label')) {
-            newSize = 16.5;
+            newSize = Math.max(curSize, 17.5);
             weight = '800';
             target.setAttribute('fill', 'rgb(180, 83, 9)');
+          } else if ((textContent.length >= 4 && textContent.indexOf('/') >= 2 && textContent.indexOf('/') <= 5) || orig.classList.contains('t-dim')) {
+            // 泳道/分区大标题 (如 01 / 规则轨)
+            newSize = Math.max(curSize, 17.5);
+            weight = '800';
+            target.setAttribute('fill', '#0f172a');
           } else if (orig.closest && orig.closest('g[data-edge-id]')) {
-            // 连线上的消息标签，保持清晰紧凑
-            newSize = Math.min(Math.max(newSize, 9.0), 9.5);
-            weight = '500';
-          } else if (orig.getAttribute('data-detail') === 'context') {
-            newSize = 9.5;
-            weight = '600';
-          } else if (orig.getAttribute('data-detail') === 'fine') {
-            newSize = 8.5;
+            // 连线上的消息标签/药丸文字：出版级核心，平衡清晰度与节点间隙，升级至 13.5px 粗体
+            newSize = Math.max(curSize, 13.5);
+            weight = '700';
+            if (textFill.includes('100, 116, 139') || textFill.includes('148, 163, 184') || !textFill || textFill === 'none') {
+              target.setAttribute('fill', '#0f172a');
+            }
+          } else if (participantG) {
+            var cardRect = participantG.querySelector('rect');
+            var cardW = cardRect ? parseFloat(cardRect.getAttribute('width') || '120') : 120;
+            if (cardW <= 100) {
+              // 紧凑型节点 (如时序图顶部小卡片)
+              if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
+                newSize = Math.max(curSize, 13.5);
+                weight = '700';
+                target.setAttribute('fill', '#0f172a');
+              } else if (orig.getAttribute('data-detail') === 'context' || orig.classList.contains('t-muted')) {
+                newSize = Math.max(curSize, 11.5);
+                weight = '600';
+                target.setAttribute('fill', 'rgb(51, 65, 85)');
+              } else {
+                newSize = Math.max(curSize, 10.5);
+                weight = '600';
+              }
+            } else {
+              // 标准组件卡片 (宽 > 100px)
+              if (orig.hasAttribute('data-node-label') || orig.classList.contains('t-primary')) {
+                newSize = Math.max(curSize, 17.0);
+                weight = '700';
+                target.setAttribute('fill', '#0f172a');
+              } else if (orig.getAttribute('data-detail') === 'context' || orig.classList.contains('t-muted')) {
+                newSize = Math.max(curSize, 14.5);
+                weight = '600';
+                target.setAttribute('fill', 'rgb(51, 65, 85)'); // 高对比深石板色
+              } else if (orig.getAttribute('data-detail') === 'fine') {
+                newSize = Math.max(curSize, 13.0);
+                weight = '700';
+              } else {
+                newSize = Math.max(curSize, 14.0);
+                weight = '600';
+              }
+            }
+          } else {
+            // 其他正文文字保底
+            newSize = Math.max(curSize, 13.5);
             weight = '600';
           }
 
-          target.setAttribute('font-size', newSize.toString());
+          target.setAttribute('font-size', (Math.round(newSize * 10) / 10).toString());
           target.setAttribute('font-weight', weight);
 
           // 核心安全网：卡片内文字动态自适应防溢出守护 (Auto-Fit Guard)
-          // 精确测量文字实际渲染宽度，确保文字两侧永远留出至少 12px 优雅呼吸内边距
+          // 允许微调缩放，但保底绝不低于 13.0px，防止极限挤压为不可读字号
           if (participantG) {
             try {
               var cardRect = participantG.querySelector('rect');
               var cardW = cardRect ? parseFloat(cardRect.getAttribute('width') || '120') : 120;
-              var maxAllowedWidth = cardW - 24; // 两侧各留出至少 12px 呼吸留白
+              var maxAllowedWidth = cardW - 16; // 两侧留出呼吸留白
               var tBbox = orig.getBBox();
               if (tBbox && tBbox.width > maxAllowedWidth && cardW > 30) {
                 var scale = maxAllowedWidth / tBbox.width;
                 if (scale < 1.0) {
-                  var adjustedSize = Math.max(7.5, Math.floor(newSize * scale * 10) / 10);
+                  var adjustedSize = Math.max(13.0, Math.floor(newSize * scale * 10) / 10);
                   target.setAttribute('font-size', adjustedSize.toString());
                 }
               }
             } catch (e) {}
           }
+
 
           // 居中优化：若原文本设置了 text-anchor="middle"，确保保留
           var anchor = orig.getAttribute('text-anchor') || cs.textAnchor;
@@ -262,6 +280,43 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
       }
 
       syncStyles(svg, clone);
+
+      // 1.1 移除卡片左上角微图标 (.semantic-sigil)，避免与放大后的 17px 大标题重叠
+      Array.from(clone.querySelectorAll('.semantic-sigil')).forEach(function(sigil) {
+        sigil.remove();
+      });
+
+      // 1.2 优化卡片内部文本垂直分布，保证三行/两行文本呼吸感充足
+      Array.from(clone.querySelectorAll('[data-node-id]')).forEach(function(g) {
+        var cardRect = g.querySelector('rect:not(.c-mask)');
+        if (!cardRect) return;
+        var y0 = parseFloat(cardRect.getAttribute('y'));
+        var h = parseFloat(cardRect.getAttribute('height'));
+        if (isNaN(y0) || isNaN(h)) return;
+
+        var label = g.querySelector('[data-node-label]');
+        var ctx = g.querySelector('[data-detail="context"]');
+        var fine = g.querySelector('[data-detail="fine"]');
+
+        if (label && ctx && fine) {
+          // 3 行文本最佳视距 (40% / 67% / 86%)
+          label.setAttribute('y', String(Math.round((y0 + h * 0.40) * 10) / 10));
+          ctx.setAttribute('y', String(Math.round((y0 + h * 0.67) * 10) / 10));
+          fine.setAttribute('y', String(Math.round((y0 + h * 0.86) * 10) / 10));
+        } else if (label && ctx) {
+          // 2 行文本布局
+          label.setAttribute('y', String(Math.round((y0 + h * 0.45) * 10) / 10));
+          ctx.setAttribute('y', String(Math.round((y0 + h * 0.75) * 10) / 10));
+        }
+      });
+
+      // 1.3 为所有连线药丸标签增加精致边框
+      Array.from(clone.querySelectorAll('g[data-edge-id] rect.c-mask')).forEach(function(mask) {
+        if (!mask.getAttribute('stroke') || mask.getAttribute('stroke') === 'none') {
+          mask.setAttribute('stroke', 'rgb(203, 213, 225)');
+          mask.setAttribute('stroke-width', '1px');
+        }
+      });
 
       // 2. 内联 defs 中的标记 (markers) 计算样式
       var markers = clone.querySelectorAll('marker');
