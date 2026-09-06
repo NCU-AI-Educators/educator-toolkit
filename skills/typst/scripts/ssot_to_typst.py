@@ -858,8 +858,8 @@ def convert_ssot_to_typst(md_path: str) -> str:
             i += 1
             continue
 
-        # 表格前置标题捕获 **表X-X 名称**
-        table_caption_match = re.match(r'^\s*\*\*(表\d+[\-\.]\d+.*?)\*\*\s*$', stripped)
+        # 表格前置标题捕获（支持 **表X-X 名称**、*表 X-X 名称*、表 X-X 名称等学术规范形式）
+        table_caption_match = re.match(r'^\s*(?:\*{1,2})?(表\s*\d+[\-\.]\d+.*?)(?:\*{1,2})?\s*$', stripped)
         if table_caption_match:
             last_table_caption = table_caption_match.group(1).strip()
             i += 1
@@ -875,9 +875,9 @@ def convert_ssot_to_typst(md_path: str) -> str:
             tbl_rendered = parse_markdown_table_to_typst("\n".join(table_buffer))
             if last_table_caption:
                 typ_lines.append(f"""
-#v(0.4em)
-#align(center)[#text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("#0f172a"))[{last_table_caption}]]
-#v(0.1em)
+#v(0.2em)
+#align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
+#v(-0.1em)
 {tbl_rendered}
 #v(0.4em)
 """)
@@ -1210,9 +1210,9 @@ def convert_ssot_to_typst(md_path: str) -> str:
         tbl_rendered = parse_markdown_table_to_typst("\n".join(table_buffer))
         if last_table_caption:
             typ_lines.append(f"""
-#v(0.4em)
-#align(center)[#text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("#0f172a"))[{last_table_caption}]]
-#v(0.1em)
+#v(0.2em)
+#align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
+#v(-0.1em)
 {tbl_rendered}
 #v(0.4em)
 """)
