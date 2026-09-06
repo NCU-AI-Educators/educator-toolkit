@@ -603,7 +603,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 ]
 
 #show heading.where(level: 3): it => block(width: 100%, above: 1.0em, below: 0.8em)[
-  #set text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 11pt, weight: "bold", fill: rgb("#1e293b"))
+  #set text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 11pt, weight: "bold", fill: rgb("#0369a1"))
   #it.body
 ]
 
@@ -1072,20 +1072,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         elif stripped.startswith("#### "):
             section_list_counter = 0
             h4_title = stripped[5:].strip()
-            # 普适语义规则：区分“树状章节编号小节（如 4.1.1）”与“内容段落级小标题（如 第一阶段：...）”
-            if re.match(r'^\d+(\.\d+)+\s+', h4_title):
-                # 带层级点分编号：作为正式结构小节，左对齐顶格锚定版面
-                typ_lines.append(f"=== {h4_title}")
-            else:
-                # 无点分编号的段落级小标题：首行缩进 2em 对齐正文与列表首部，消除锯齿凹凸
-                formatted_h4 = format_inline_markdown(h4_title)
-                typ_lines.append(f"""
-#pad(left: 2em)[
-  #block(width: 100%, above: 1.1em, below: 0.8em)[
-    #text(font: ("PingFang SC", "Heiti SC"), size: 11pt, weight: "bold", fill: rgb("#0f172a"))[{formatted_h4}]
-  ]
-]
-""")
+            formatted_h4 = format_inline_markdown(h4_title)
+            typ_lines.append(f"=== {formatted_h4}")
             i += 1
             continue
         elif stripped.startswith("##### "):
