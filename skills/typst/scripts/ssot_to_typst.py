@@ -931,15 +931,17 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             tbl_rendered = parse_markdown_table_to_typst("\n".join(table_buffer))
             if last_table_caption:
                 typ_lines.append(f"""
-#v(0.2em)
-#align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
-#v(-0.1em)
-{tbl_rendered}
-#v(0.4em)
+#block(width: 100%, breakable: false)[
+  #v(0.2em)
+  #align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
+  #v(-0.1em)
+  {tbl_rendered}
+  #v(0.4em)
+]
 """)
                 last_table_caption = None
             else:
-                typ_lines.append(f"\n{tbl_rendered}\n")
+                typ_lines.append(f"\n#block(width: 100%, breakable: false)[\n{tbl_rendered}\n]\n")
             table_buffer = []
             in_table = False
 
