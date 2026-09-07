@@ -148,6 +148,7 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     raw = re.sub(r'\\mathbb\{Z\}', 'ZZ', raw)
     raw = re.sub(r'\\mathbb\{C\}', 'CC', raw)
     raw = re.sub(r'\\mathcal\{([^}]+)\}', r'cal(\1)', raw)
+    raw = re.sub(r'\\sqrt\{([^}]+)\}', r'sqrt(\1)', raw)
 
     raw = re.sub(r'\\left\(', '(', raw)
     raw = re.sub(r'\\right\)', ')', raw)
@@ -206,6 +207,10 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         (r'\\omega(?![a-zA-Z])', 'omega'),
         (r'\\Delta(?![a-zA-Z])', 'Delta'),
         (r'\\Omega(?![a-zA-Z])', 'Omega'),
+        (r'\\mid(?![a-zA-Z])', ' | '),
+        (r'\\dots(?![a-zA-Z])', ' ... '),
+        (r'\\cdots(?![a-zA-Z])', ' ... '),
+        (r'\\ldots(?![a-zA-Z])', ' ... '),
         (r'\\%', '%'),
     ]
     for pattern, repl in replacements:
@@ -265,6 +270,7 @@ def convert_latex_math_to_typst(math_content: str) -> str:
 def format_inline_markdown(text: str) -> str:
     """格式化正文行内 Markdown（粗体、斜体、代码、行内公式、特殊字符转义）"""
     text = text.replace("*/", "* /")
+    text = text.replace("&nbsp;", "\u00a0")
 
     codes = []
     def save_code(m):
@@ -277,6 +283,9 @@ def format_inline_markdown(text: str) -> str:
         maths.append(convert_latex_math_to_typst(m.group(1)))
         return f"__INLINE_MATH_{len(maths)-1}__"
     text = re.sub(r'\$([^\$]+)\$', save_math, text)
+
+    # 规范化数值与章节区间的半角波浪号（如 4.7~4.12），避免被 Typst 误识别为 non-breaking space
+    text = re.sub(r'(\d+(?:\.\d+)*)\s*~\s*(\d+(?:\.\d+)*)', r'\1～\2', text)
 
     text = text.replace("@", "\\@")
 
@@ -414,23 +423,27 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     metadata = {
         'title': '技术工程设计基准',
         'subtitle': '',
-        'document_id': 'SSOT-SPEC-2026-V1.0',
-        'classification': '内部受控',
-        'author': '系统架构委员会',
-        'institution': '南昌大学AI创新应用实验室（AIIA Lab@NCU）',
+        'document_id': '',
+        'classification': '',
+        'author': '',
+        'institution': '',
         'date': '2026年9月',
         'abstract': '',
         'keywords': '',
     }
 
     body = content
+    has_frontmatter = False
+    raw_frontmatter = {}
     if content.startswith("---"):
         parts = content.split("---", 2)
         if len(parts) >= 3:
             try:
                 parsed_yaml = yaml.safe_load(parts[1])
                 if isinstance(parsed_yaml, dict):
+                    raw_frontmatter = parsed_yaml
                     metadata.update(parsed_yaml)
+                    has_frontmatter = True
             except Exception as e:
                 print(f"Warning: YAML parse error: {e}")
             body = parts[2]
@@ -440,10 +453,67 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         metadata["classification"] = metadata["classification"].split("/")[0].strip()
     body_lines = body.split("\n")
     clean_lines = []
+    has_removed_h1 = False
+    in_cb = False
     for l in body_lines:
-        if l.strip().startswith("# ") and not l.strip().startswith("## "):
+        if l.strip().startswith("```"):
+            in_cb = not in_cb
+        if not in_cb and not has_removed_h1 and l.strip().startswith("# ") and not l.strip().startswith("## "):
+            has_removed_h1 = True
+            extracted_title = l.strip()[2:].strip()
+            if extracted_title and (not has_frontmatter or metadata.get('title') in ('', '技术工程设计基准')):
+                metadata['title'] = extracted_title
             continue
         clean_lines.append(l)
+
+    # 智能识别文档体裁：课程教学/学生材料 vs 工业工程规范
+    is_course_doc = (
+        "course" in metadata or
+        any(k in str(metadata.get(f, "")) for k in ["教学", "课程", "大纲", "讲义", "反思日志", "学生", "实验"] for f in ["title", "subtitle", "author", "institution"]) or
+        any(k in os.path.basename(md_path) for k in ["讲", "大纲", "课程", "学生", "反思", "指南", "手册", "实践", "实验"])
+    )
+
+    has_doc_id = bool(raw_frontmatter.get("document_id"))
+    has_classification = bool(raw_frontmatter.get("classification"))
+
+    if is_course_doc:
+        label_author = "教 学 团 队"
+        label_institution = "开 课 单 位"
+        label_date = "编 制 日 期"
+        label_doc_id = "大纲编号" if "大纲" in metadata.get('title', '') else "课程编号"
+        label_classification = "使用范围"
+        if not metadata.get('author'):
+            metadata['author'] = "《人机协同程序设计》教学团队" if "人机协同" in metadata.get('title', '') else "课程教学团队"
+        if not metadata.get('institution'):
+            metadata['institution'] = "南昌大学"
+    else:
+        label_author = "编 制 团 队"
+        label_institution = "研 发 机 构"
+        label_date = "发 布 日 期"
+        label_doc_id = "受控编号"
+        label_classification = "受控密级"
+        if not metadata.get('author'):
+            metadata['author'] = "系统架构委员会"
+        if not metadata.get('institution'):
+            metadata['institution'] = "南昌大学AI创新应用实验室（AIIA Lab@NCU）"
+
+    # 偶数页右侧页眉与页脚受控信息动态计算
+    doc_id_val = metadata.get('document_id', '')
+    inst_val = metadata.get('institution', '')
+    class_val = metadata.get('classification', '')
+
+    if has_doc_id:
+        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{label_doc_id}：#text(fill: rgb("#0369a1"), weight: "bold")[#raw("{doc_id_val}")]]'
+    elif is_course_doc:
+        course_name = metadata.get("course") or ("《人机协同程序设计》" if "人机协同" in metadata.get('title', '') else "通识课程")
+        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[南昌大学 · {course_name}]'
+    else:
+        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{inst_val}]'
+
+    if has_classification:
+        footer_left = f'#text("{inst_val}") · #text(fill: rgb("#0f172a"), weight: "medium")[{class_val}]'
+    else:
+        footer_left = f'#text("{inst_val}")'
 
     # 智能断行处理编制团队与研发机构
     formatted_author = format_org_cell(metadata['author'])
@@ -491,7 +561,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
       let right_content = if is_odd {{
         text(size: 8.5pt, fill: rgb("#0369a1"), weight: "bold", font: ("PingFang SC", "Heiti SC"))[#page_num]
       }} else {{
-        text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[受控编号：#text(fill: rgb("#0369a1"), weight: "bold")[#raw("{metadata['document_id']}")]]
+        {even_header_right}
       }}
 
       let header_cols = if is_odd {{ (1fr, auto) }} else {{ (auto, 1fr) }}
@@ -513,7 +583,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         columns: (1fr, auto),
         align(left + horizon)[
           #text(8pt, fill: rgb("#64748b"), font: ("PingFang SC", "Songti SC"))[
-            #text("{metadata['institution']}") · #text(fill: rgb("#0f172a"), weight: "medium")[{metadata['classification']}]
+            {footer_left}
           ]
         ],
         align(right + horizon)[
@@ -549,7 +619,15 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   indent: 2em,
   body-indent: 0.5em,
   spacing: 0.85em,
-  numbering: "(1)"
+  full: true,
+  numbering: (..args) => {{
+    let pos = args.pos()
+    if pos.len() == 1 {{
+      str(pos.first()) + "."
+    }} else {{
+      "(" + str(pos.last()) + ")"
+    }}
+  }}
 )
 #show list: set block(above: 0.85em, below: 0.85em)
 #show enum: set block(above: 0.85em, below: 0.85em)""")
@@ -612,7 +690,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   #it.body
 ]
 
-// 核心大标题与优雅分层元数据台
+// 核心大标题与元数据
 #align(center)[
   #block(width: 100%)[
     #text(font: ("PingFang SC", "Heiti SC"), size: 18pt, weight: "bold", fill: rgb("#0f172a"))[{metadata['title']}]
@@ -623,31 +701,53 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     #text(font: ("PingFang SC", "Heiti SC"), size: 11.5pt, fill: rgb("#475569"))[{metadata['subtitle']}]
 """)
 
-    typ_lines.append(f"""    #v(10pt)
+    if not has_frontmatter:
+        # 无 frontmatter 文档（如随堂练习、学生反思日志、作业模板等）：不渲染工业元数据表格，仅输出雅致底线
+        typ_lines.append("""    #v(8pt)
+    #line(length: 100%, stroke: 1.2pt + rgb("#0f172a"))
+  ]
+]
+#v(6pt)
+""")
+    else:
+        # 显式声明 frontmatter 的正式规范/大纲/讲义：渲染自适应元数据台
+        typ_lines.append(f"""    #v(10pt)
     #line(length: 100%, stroke: 0.8pt + rgb("#cbd5e1"))
     #v(4pt)
     #grid(
       columns: (2.3fr, 2.3fr, 1fr),
       column-gutter: 14pt,
       row-gutter: 5pt,
-      align(left)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[编 制 团 队]],
-      align(left)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[研 发 机 构]],
-      align(right)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[发 布 日 期]],
+      align(left)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{label_author}]],
+      align(left)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{label_institution}]],
+      align(right)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{label_date}]],
       
       align(left)[#text(9pt, weight: "medium", fill: rgb("#0f172a"), font: ("PingFang SC", "Heiti SC"))[{formatted_author}]],
       align(left)[#text(9pt, weight: "medium", fill: rgb("#0f172a"), font: ("PingFang SC", "Heiti SC"))[{formatted_inst}]],
       align(right)[#text(9pt, weight: "medium", fill: rgb("#0f172a"), font: ("PingFang SC", "Heiti SC"))[{metadata['date']}]]
     )
-    #v(6pt)
+""")
+        if has_doc_id and has_classification:
+            typ_lines.append(f"""    #v(6pt)
     #grid(
       columns: (1.2fr, 1fr),
-      align(left)[#text(8.5pt, fill: rgb("#0369a1"), weight: "bold", font: ("PingFang SC", "Heiti SC"))[受控编号：#raw("{metadata['document_id']}") ]],
-      align(right)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[受控密级：#text(fill: rgb("#0f172a"), weight: "medium")[{metadata['classification']}]]]
+      align(left)[#text(8.5pt, fill: rgb("#0369a1"), weight: "bold", font: ("PingFang SC", "Heiti SC"))[{label_doc_id}：#raw("{metadata['document_id']}") ]],
+      align(right)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{label_classification}：#text(fill: rgb("#0f172a"), weight: "medium")[{metadata['classification']}]]]
     )
-    #v(6pt)
+""")
+        elif has_doc_id:
+            typ_lines.append(f"""    #v(6pt)
+    #align(left)[#text(8.5pt, fill: rgb("#0369a1"), weight: "bold", font: ("PingFang SC", "Heiti SC"))[{label_doc_id}：#raw("{metadata['document_id']}") ]]
+""")
+        elif has_classification:
+            typ_lines.append(f"""    #v(6pt)
+    #align(right)[#text(8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{label_classification}：#text(fill: rgb("#0f172a"), weight: "medium")[{metadata['classification']}]]]
+""")
+        typ_lines.append("""    #v(6pt)
     #line(length: 100%, stroke: 1.2pt + rgb("#0f172a"))
   ]
 ]
+#v(6pt)
 
 // 摘要与关键词卡片
 """)
@@ -904,7 +1004,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                         continue
 
                 # 原生代码块卡片
-                typ_lines.append(f"""```{code_lang}\n{code_text}\n```""")
+                clean_code_lang = code_lang.split('/')[0].split()[0].strip() if code_lang else ""
+                typ_lines.append(f"""```{clean_code_lang}\n{code_text}\n```""")
                 code_buffer = []
                 i += 1
                 continue
@@ -954,7 +1055,13 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         # 分隔线 ---
         if re.match(r'^-{3,}$', stripped) or re.match(r'^\*{3,}$', stripped):
             section_list_counter = 0
-            typ_lines.append("\n#v(0.5em)#line(length: 100%, stroke: 0.5pt + rgb(\"#e2e8f0\"))#v(0.5em)\n")
+            next_idx = i + 1
+            while next_idx < len(clean_lines) and not clean_lines[next_idx].strip():
+                next_idx += 1
+            if next_idx < len(clean_lines) and clean_lines[next_idx].strip().startswith("#"):
+                typ_lines.append("\n#v(0.15em)#line(length: 100%, stroke: 0.5pt + rgb(\"#e2e8f0\"))#v(0.1em)\n")
+            else:
+                typ_lines.append("\n#v(0.5em)#line(length: 100%, stroke: 0.5pt + rgb(\"#e2e8f0\"))#v(0.5em)\n")
             i += 1
             continue
 
@@ -962,10 +1069,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         if stripped.startswith("## "):
             section_list_counter = 0
             title_text = stripped[3:].strip()
+            formatted_title = format_inline_markdown(title_text)
             if "参考文献" in title_text or "References" in title_text:
-                typ_lines.append(f"#pagebreak(weak: true)\n= {title_text}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
+                typ_lines.append(f"#pagebreak(weak: true)\n= {formatted_title}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
             else:
-                typ_lines.append(f"= {title_text}")
+                typ_lines.append(f"= {formatted_title}")
             i += 1
             continue
         
@@ -1054,17 +1162,21 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 else:
                     formatted_quotes.append(format_inline_markdown(q_strip))
             joined_quote = "\n\n".join(formatted_quotes)
+            is_empty_quote = not joined_quote.strip()
             if quote_indent >= 2:
+                above_val = "0.3em" if is_empty_quote else "0.6em"
+                below_val = "0.4em" if is_empty_quote else "0.8em"
+                inset_y = "4pt" if is_empty_quote else "7pt"
                 typ_lines.append(f"""
 #pad(left: 2em)[
   #block(
     width: 100%,
     stroke: (left: 2.5pt + rgb("#0284c7")),
     fill: rgb("#f0f9ff"),
-    inset: (x: 10pt, y: 7pt),
+    inset: (x: 10pt, y: {inset_y}),
     radius: (right: 3pt),
-    above: 0.6em,
-    below: 0.8em
+    above: {above_val},
+    below: {below_val}
   )[
     #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
     #set list(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
@@ -1074,15 +1186,18 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 ]
 """)
             else:
+                above_val = "4pt" if is_empty_quote else "8pt"
+                below_val = "5pt" if is_empty_quote else "10pt"
+                inset_y = "5pt" if is_empty_quote else "8pt"
                 typ_lines.append(f"""
 #block(
   width: 100%,
   stroke: (left: 3.5pt + rgb("#0284c7")),
   fill: rgb("#f0f9ff"),
-  inset: (x: 12pt, y: 8pt),
+  inset: (x: 12pt, y: {inset_y}),
   radius: (right: 4pt),
-  above: 8pt,
-  below: 10pt
+  above: {above_val},
+  below: {below_val}
 )[
   #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
   #set list(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
@@ -1095,13 +1210,14 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         if stripped.startswith("### "):
             section_list_counter = 0
             sub_title = stripped[4:].strip()
+            formatted_sub = format_inline_markdown(sub_title)
             if "参考文献" in sub_title or "References" in sub_title:
-                typ_lines.append(f"#pagebreak(weak: true)\n== {sub_title}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
+                typ_lines.append(f"#pagebreak(weak: true)\n== {formatted_sub}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
             elif ("3.2" in sub_title and "图文分层解耦渲染" in sub_title) or ("3.3" in sub_title and "业务对话状态机" in sub_title):
                 typ_lines.append("#pagebreak(weak: true)")
-                typ_lines.append(f"== {sub_title}")
+                typ_lines.append(f"== {formatted_sub}")
             else:
-                typ_lines.append(f"== {sub_title}")
+                typ_lines.append(f"== {formatted_sub}")
             i += 1
             continue
         elif stripped.startswith("#### "):
@@ -1176,7 +1292,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                     item_body = re.sub(r'[：:]\s*$', '', item_body)
                     item_body = re.sub(r'[：:](\*\*|__)\s*$', r'\1', item_body)
                 formatted_item = format_inline_markdown(item_body)
-                typ_lines.append(f"+ {formatted_item}")
+                typ_lines.append(f"  + {formatted_item}")
                 i += 1
                 continue
             elif m_sub_bullet:
@@ -1191,7 +1307,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                     item_body = re.sub(r'[：:]\s*$', '', item_body)
                     item_body = re.sub(r'[：:](\*\*|__)\s*$', r'\1', item_body)
                 formatted_item = format_inline_markdown(item_body)
-                typ_lines.append(f"- {formatted_item}")
+                typ_lines.append(f"  - {formatted_item}")
                 i += 1
                 continue
             else:
@@ -1207,45 +1323,19 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 continue
 
         # =========================================================================
-        # =========================================================================
-        # 2. 第一级列表 (indent < 2)：
+        # 2. 第一级列表 (indent < 2)：原生流式排版，保留粗体行内语义，严禁强加换行
         # =========================================================================
         is_unordered = re.match(r'^[\*\-]\s+', stripped)
         is_ordered = re.match(r'^\d+\.\s+', stripped)
         if is_unordered or is_ordered:
             body = re.sub(r'^([\*\-]|\d+\.)\s+', '', stripped)
-
-            # 匹配加粗格式符、其后冒号与尾部文本
-            m_bold = re.match(r'^(.*?)(\*\*|__)(.*?)\2\s*([：:])?\s*(.*)$', body)
-            if m_bold:
-                # 只有带加粗格式符的一级列表项，才升格为小节内带序号的小标题
-                section_list_counter += 1
-                num = section_list_counter
-                prefix = m_bold.group(1).strip()
-                title_core = m_bold.group(3).strip()
-                tail = m_bold.group(5).strip()
-                title_parts = [prefix, title_core] if prefix else [title_core]
-                full_title = " ".join(title_parts)
-                full_title = re.sub(r'[：:]\s*$', '', full_title)
-                formatted_title = format_inline_markdown(full_title)
-
-                # 第一级小标题：严格按 test_natural_spacing 规范输出独立加粗行与自然分段
-                if typ_lines and typ_lines[-1] != "":
-                    typ_lines.append("")
-                typ_lines.append(f"#text(font: (\"Times New Roman\", \"PingFang SC\", \"Heiti SC\"), weight: \"bold\", fill: rgb(\"#0f172a\"))[{num}\\. {formatted_title}]")
+            formatted_body = format_inline_markdown(body)
+            if typ_lines and typ_lines[-1] != "" and not typ_lines[-1].startswith("- ") and not typ_lines[-1].startswith("+ "):
                 typ_lines.append("")
-                # 加粗后冒号替换为换行，后面文本若非空则另起独立段落
-                if tail:
-                    typ_lines.append(format_inline_markdown(tail))
-                    typ_lines.append("")
+            if is_unordered:
+                typ_lines.append(f"- {formatted_body}")
             else:
-                # 不带加粗的普通列表项：严格保留原生 Markdown / Typst 列表语义
-                if typ_lines and typ_lines[-1] != "" and not typ_lines[-1].startswith("- ") and not typ_lines[-1].startswith("+ "):
-                    typ_lines.append("")
-                if is_unordered:
-                    typ_lines.append(f"- {format_inline_markdown(body)}")
-                else:
-                    typ_lines.append(f"+ {format_inline_markdown(body)}")
+                typ_lines.append(f"+ {formatted_body}")
             i += 1
             continue
 
@@ -1343,9 +1433,15 @@ def main():
         out_target = os.path.abspath(args.output)
     else:
         if mode == "long":
-            out_target = in_md.replace(".ssot.md", ".png").replace(".md", ".png")
+            if in_md.endswith(".ssot.md"):
+                out_target = in_md[:-8] + ".ssot.long.png"
+            else:
+                out_target = in_md.replace(".md", ".png")
         else:
-            out_target = in_md.replace(".ssot.md", ".pdf").replace(".md", ".pdf")
+            if in_md.endswith(".ssot.md"):
+                out_target = in_md[:-8] + ".ssot.a4.pdf"
+            else:
+                out_target = in_md.replace(".md", ".pdf")
 
     # 派生 typ 路径
     if out_target.endswith(".typ"):
