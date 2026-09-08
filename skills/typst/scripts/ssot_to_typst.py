@@ -296,9 +296,34 @@ def format_inline_markdown(text: str) -> str:
     for idx, math_typ in enumerate(maths):
         text = text.replace(f"__INLINE_MATH_{idx}__", f"${math_typ}$")
 
+    # 清洗并转换 HTML 标签，防止 Typst 误识别为 <label>
+    text = re.sub(r"<br\s*/?>", r" \\ ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<sub>(.*?)</sub>", r"#sub[\1]", text, flags=re.IGNORECASE)
+    text = re.sub(r"<sup>(.*?)</sup>", r"#super[\1]", text, flags=re.IGNORECASE)
+    text = re.sub(r"<b>(.*?)</b>", r"#strong[\1]", text, flags=re.IGNORECASE)
+    text = re.sub(r"<i>(.*?)</i>", r"#emph[\1]", text, flags=re.IGNORECASE)
+    text = re.sub(r"</?(?:div|span|p|center|sub|sup|font|em|strong|b|i)[^>]*>", "", text, flags=re.IGNORECASE)
+
+    # 处理行内链接 [text](url)
+    def save_link(m):
+        l_text = m.group(1).strip()
+        l_url = m.group(2).strip()
+        if l_url.startswith("http://") or l_url.startswith("https://") or l_url.startswith("mailto:"):
+            return f'#link("{l_url}")[{l_text}]'
+        elif l_url.startswith("#"):
+            anchor_id = re.sub(r'[^a-zA-Z0-9_\-]', '', l_url[1:])
+            if anchor_id:
+                return f'#link(<{anchor_id}>)[{l_text}]'
+            return l_text
+        else:
+            return f'#link("{l_url}")[{l_text}]'
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', save_link, text)
+
     for idx, code_str in enumerate(codes):
         text = text.replace(f"__INLINE_CODE_{idx}__", f'`{code_str}`')
 
+    # 修复加粗超链接嵌套导致的 Typst 语法回退: #strong#link(...) -> #link(...)[#strong[...]]
+    text = re.sub(r'#strong#link\((.*?)\)\[\[(.*?)\]\]', r'#link(\1)[#strong[\2]]', text)
     return text
 
 def estimate_text_visual_width(text: str) -> int:
@@ -466,36 +491,97 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             continue
         clean_lines.append(l)
 
-    # 智能识别文档体裁：课程教学/学生材料 vs 工业工程规范
-    is_course_doc = (
-        "course" in metadata or
-        any(k in str(metadata.get(f, "")) for k in ["教学", "课程", "大纲", "讲义", "反思日志", "学生", "实验"] for f in ["title", "subtitle", "author", "institution"]) or
-        any(k in os.path.basename(md_path) for k in ["讲", "大纲", "课程", "学生", "反思", "指南", "手册", "实践", "实验"])
-    )
+    # --------------------------------------------------------------------------
+    # 彻底解耦语义与程序代码：元数据标签支持 Frontmatter 显式定义与体裁自适应体系
+    # 优先级 1: Frontmatter 显式自定义标签 (labels 字典 或 label_* 平铺键)
+    # 优先级 2: Frontmatter 显式体裁声明 (doc_type / genre)
+    # 优先级 3: 精准无歧义的语义启发式回退 (杜绝“实验室”等模糊关键字误判)
+    # --------------------------------------------------------------------------
+    custom_labels = raw_frontmatter.get("labels", {})
+    if not isinstance(custom_labels, dict):
+        custom_labels = {}
+
+    # 兼容平铺写法：如 label_author, label_doc_id, label_institution 等
+    for k in ["author", "institution", "date", "document_id", "doc_id", "classification"]:
+        if f"label_{k}" in raw_frontmatter and k not in custom_labels:
+            custom_labels[k] = str(raw_frontmatter[f"label_{k}"])
+    if "doc_id" in custom_labels and "document_id" not in custom_labels:
+        custom_labels["document_id"] = custom_labels["doc_id"]
+
+    # 预设体裁配置字典
+    GENRE_PRESETS = {
+        "course": {
+            "author": "教 学 团 队",
+            "institution": "开 课 单 位",
+            "date": "编 制 日 期",
+            "document_id": "课程编号",
+            "classification": "使用范围",
+            "default_author": "《人机协同程序设计》教学团队" if "人机协同" in metadata.get('title', '') else "课程教学团队",
+            "default_institution": "南昌大学",
+        },
+        "spec": {
+            "author": "编 制 团 队",
+            "institution": "研 发 机 构",
+            "date": "编 制 日 期",
+            "document_id": "文档编号",
+            "classification": "受控密级",
+            "default_author": "系统架构委员会",
+            "default_institution": "南昌大学AI创新应用实验室（AIIA Lab@NCU）",
+        },
+        "report": {
+            "author": "报 告 团 队",
+            "institution": "编 制 单 位",
+            "date": "报 告 日 期",
+            "document_id": "报告编号",
+            "classification": "受控密级",
+            "default_author": "项目联合工程团队",
+            "default_institution": "南昌大学AI创新应用实验室（AIIA Lab@NCU）",
+        },
+    }
+
+    # 获取显式 doc_type / genre
+    raw_doc_type = str(raw_frontmatter.get("doc_type") or raw_frontmatter.get("genre") or "").strip().lower()
+    if raw_doc_type in ["course", "syllabus", "lecture", "teaching"]:
+        matched_genre = "course"
+    elif raw_doc_type in ["spec", "srs", "tdd", "specification", "engineering", "tech", "architecture", "standard"]:
+        matched_genre = "spec"
+    elif raw_doc_type in ["report", "tr", "feasibility", "survey"]:
+        matched_genre = "report"
+    else:
+        # 回退启发式：严谨判断，绝不使用单一模糊词（如“实验”）误判
+        title_str = str(metadata.get('title', ''))
+        file_base = os.path.basename(md_path)
+        
+        has_course_prop = "course" in raw_frontmatter
+        is_syllabus_or_lecture = (
+            any(k in title_str or k in file_base for k in ["教学大纲", "课程大纲", "讲义", "反思日志"]) or
+            (file_base.startswith("第") and "讲" in file_base)
+        )
+
+        if has_course_prop or is_syllabus_or_lecture:
+            matched_genre = "course"
+        elif any(k in title_str or k in file_base for k in ["可行性", "论证", "调研", "报告", "-TR-"]):
+            matched_genre = "report"
+        else:
+            matched_genre = "spec"
+
+    preset = GENRE_PRESETS[matched_genre]
+
+    # 解析最终各 Label（Frontmatter 显式定义拥有绝对最高优先级）
+    label_author = custom_labels.get("author") or preset["author"]
+    label_institution = custom_labels.get("institution") or preset["institution"]
+    label_date = custom_labels.get("date") or preset["date"]
+    label_doc_id = custom_labels.get("document_id") or preset["document_id"]
+    label_classification = custom_labels.get("classification") or preset["classification"]
+
+    # 缺省值填充
+    if not metadata.get('author'):
+        metadata['author'] = preset["default_author"]
+    if not metadata.get('institution'):
+        metadata['institution'] = preset["default_institution"]
 
     has_doc_id = bool(raw_frontmatter.get("document_id"))
     has_classification = bool(raw_frontmatter.get("classification"))
-
-    if is_course_doc:
-        label_author = "教 学 团 队"
-        label_institution = "开 课 单 位"
-        label_date = "编 制 日 期"
-        label_doc_id = "大纲编号" if "大纲" in metadata.get('title', '') else "课程编号"
-        label_classification = "使用范围"
-        if not metadata.get('author'):
-            metadata['author'] = "《人机协同程序设计》教学团队" if "人机协同" in metadata.get('title', '') else "课程教学团队"
-        if not metadata.get('institution'):
-            metadata['institution'] = "南昌大学"
-    else:
-        label_author = "编 制 团 队"
-        label_institution = "研 发 机 构"
-        label_date = "发 布 日 期"
-        label_doc_id = "受控编号"
-        label_classification = "受控密级"
-        if not metadata.get('author'):
-            metadata['author'] = "系统架构委员会"
-        if not metadata.get('institution'):
-            metadata['institution'] = "南昌大学AI创新应用实验室（AIIA Lab@NCU）"
 
     # 偶数页右侧页眉与页脚受控信息动态计算
     doc_id_val = metadata.get('document_id', '')
@@ -504,11 +590,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 
     if has_doc_id:
         even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{label_doc_id}：#text(fill: rgb("#0369a1"), weight: "bold")[#raw("{doc_id_val}")]]'
-    elif is_course_doc:
+    elif matched_genre == "course":
         course_name = metadata.get("course") or ("《人机协同程序设计》" if "人机协同" in metadata.get('title', '') else "通识课程")
         even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[南昌大学 · {course_name}]'
     else:
-        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{inst_val}]'
+        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{inst_val.replace("@", "\\@")}]'
 
     if has_classification:
         footer_left = f'#text("{inst_val}") · #text(fill: rgb("#0f172a"), weight: "medium")[{class_val}]'
@@ -669,6 +755,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 )
 
 // 标题层级体系规范（用户指定精准间距体系）
+// 简单朴素出版级目录排版系统 (标准学术规约，端正自然)
+#set outline(indent: 1.5em)
 #show heading.where(level: 1): it => block(width: 100%, above: 1.5em, below: 1.25em)[
   #set align(center)
   #set text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 18pt, weight: "bold", fill: rgb("#0f172a"))
@@ -1032,23 +1120,27 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             tbl_rendered = parse_markdown_table_to_typst("\n".join(table_buffer))
             if last_table_caption:
                 typ_lines.append(f"""
-#block(width: 100%, breakable: false)[
-  #v(0.2em)
-  #align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
-  #v(-0.1em)
-  {tbl_rendered}
-  #v(0.4em)
-]
+#v(0.2em)
+#align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
+#v(-0.1em)
+{tbl_rendered}
+#v(0.4em)
 """)
                 last_table_caption = None
             else:
-                typ_lines.append(f"\n#block(width: 100%, breakable: false)[\n{tbl_rendered}\n]\n")
+                typ_lines.append(f"\n{tbl_rendered}\n")
             table_buffer = []
             in_table = False
 
         # 空行
         if not stripped:
             typ_lines.append("")
+            i += 1
+            continue
+
+        # 显式声明分页：Markdown 标准注释与 LaTeX 命令（彻底将分页控制权交还 SSOT 源码）
+        if re.match(r'^<!--\s*(?:page\s*break|newpage)\s*-->$', stripped, re.IGNORECASE) or stripped == r"\newpage" or re.match(r'^<div\s+[^>]*page-break-(?:before|after)\s*:\s*always[^>]*>\s*</div>$', stripped, re.IGNORECASE):
+            typ_lines.append("#pagebreak(weak: true)")
             i += 1
             continue
 
@@ -1065,15 +1157,62 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             i += 1
             continue
 
+        # 目录生成识别：遇到 "## 目录" 自动输出 Typst 原生可点击大纲，并自动消费后续手动目录列表
+        if stripped.startswith("## ") and any(stripped[3:].strip() == k for k in ["目录", "目 录", "Table of Contents", "TOC"]):
+            section_list_counter = 0
+            # 目录前是否分页完全由 Markdown 源码显式 <!-- pagebreak --> 或 Frontmatter 配置决定，绝不在编译器中硬编码换页
+            toc_conf = metadata.get("toc", {})
+            if isinstance(toc_conf, dict):
+                break_before = toc_conf.get("break_before", False)
+                break_after = toc_conf.get("break_after", mode == "book")
+            else:
+                break_before = metadata.get("toc_break_before", False)
+                break_after = metadata.get("toc_break_after", mode == "book")
+
+            before_pb = "#pagebreak(weak: true)\n" if break_before else ""
+            after_pb = "#pagebreak(weak: true)\n" if break_after else "#v(1.0em)\n"
+
+            typ_lines.append(f"""
+{before_pb}#v(1.0em)
+#align(center)[#text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 16pt, weight: "bold", fill: rgb("#0f172a"), tracking: 0.5em)[目　录]]
+#v(1.2em)
+#outline(
+  title: none,
+  depth: 2,
+)
+{after_pb}""")
+            i += 1
+            while i < len(clean_lines):
+                nxt = clean_lines[i].strip()
+                if nxt.startswith("## ") or nxt.startswith("# ") or re.match(r'^-{3,}$', nxt) or re.match(r'^\*{3,}$', nxt):
+                    if re.match(r'^-{3,}$', nxt) or re.match(r'^\*{3,}$', nxt):
+                        i += 1
+                    break
+                i += 1
+            continue
+
         # 章节标题转换（由 Typst block above/below 统一精准控制，小节内列表计数器归零）
         if stripped.startswith("## "):
             section_list_counter = 0
             title_text = stripped[3:].strip()
             formatted_title = format_inline_markdown(title_text)
+
+            # 行政性前置表格（如文档版本与修订记录）不纳入目录大纲
+            if any(k in title_text for k in ["文档版本", "修订记录", "版本记录", "变更历史"]):
+                typ_lines.append(f"#heading(level: 1, outlined: false)[{formatted_title}]")
+                i += 1
+                continue
+
+            m_sec = re.match(r'^(\d+(?:\.\d+)*)\s*(.*)', title_text)
+            anchor_label = ""
+            if m_sec:
+                sec_no = m_sec.group(1).replace(".", "-")
+                anchor_label = f" <sec-{sec_no}>"
+
             if "参考文献" in title_text or "References" in title_text:
-                typ_lines.append(f"#pagebreak(weak: true)\n= {formatted_title}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
+                typ_lines.append(f"#pagebreak(weak: true)\n= {formatted_title}{anchor_label}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
             else:
-                typ_lines.append(f"= {formatted_title}")
+                typ_lines.append(f"= {formatted_title}{anchor_label}")
             i += 1
             continue
         
@@ -1213,9 +1352,6 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             formatted_sub = format_inline_markdown(sub_title)
             if "参考文献" in sub_title or "References" in sub_title:
                 typ_lines.append(f"#pagebreak(weak: true)\n== {formatted_sub}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
-            elif ("3.2" in sub_title and "图文分层解耦渲染" in sub_title) or ("3.3" in sub_title and "业务对话状态机" in sub_title):
-                typ_lines.append("#pagebreak(weak: true)")
-                typ_lines.append(f"== {formatted_sub}")
             else:
                 typ_lines.append(f"== {formatted_sub}")
             i += 1
@@ -1229,7 +1365,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             continue
         elif stripped.startswith("##### "):
             section_list_counter = 0
-            typ_lines.append(f"==== {stripped[6:].strip()}")
+            typ_lines.append(f"==== {format_inline_markdown(stripped[6:].strip())}")
             i += 1
             continue
 
@@ -1270,6 +1406,71 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             continue
 
 
+        # =========================================================================
+        # 3. 容器标签过滤与多模图片语法 (Markdown ![alt](path) & HTML <img>)
+        # =========================================================================
+        if re.match(r'^\s*</?(?:div|center|p)\b[^>]*>\s*$', stripped, re.IGNORECASE) or re.match(r'^\s*<br\s*/?>\s*$', stripped, re.IGNORECASE):
+            i += 1
+            continue
+
+        html_img_match = re.search(r'''<img\s+[^>]*src=["\']([^"\']+)["\'][^>]*>''', stripped, re.IGNORECASE)
+        img_match = re.match(r'^\s*!\[(.*?)\]\((.*?)\)\s*$', stripped)
+
+        if img_match or html_img_match:
+            if img_match:
+                img_caption = img_match.group(1).strip()
+                img_path = img_match.group(2).strip()
+            else:
+                img_path = html_img_match.group(1).strip()
+                alt_m = re.search(r'''alt=["\']([^"\']+)["\']''', stripped, re.IGNORECASE)
+                img_caption = alt_m.group(1).strip() if alt_m else ""
+
+            # 智能消费随后的题注行（兼容 <sub><b>图...</b></sub>、*图...*、纯文本题注）
+            while i + 1 < len(clean_lines):
+                next_raw = clean_lines[i + 1].strip()
+                if not next_raw or re.match(r'^\s*</?(?:div|center|p)\b[^>]*>\s*$', next_raw, re.IGNORECASE) or re.match(r'^\s*<br\s*/?>\s*$', next_raw, re.IGNORECASE):
+                    i += 1
+                    continue
+                m_sub = re.search(r'<sub>\s*(?:<b>)?(.*?)(?:</b>)?\s*</sub>', next_raw, re.IGNORECASE)
+                if m_sub:
+                    img_caption = re.sub(r'</?[^>]+>', '', m_sub.group(1)).strip()
+                    i += 1
+                    break
+                if (next_raw.startswith("*") and next_raw.endswith("*") and len(next_raw) > 2) or \
+                   (next_raw.startswith("_") and next_raw.endswith("_") and len(next_raw) > 2) or \
+                   next_raw.startswith("图 ") or next_raw.startswith("图") or "Fig" in next_raw:
+                    clean_cap = next_raw.strip("*_ ")
+                    if not img_caption or (img_caption in clean_cap) or (clean_cap in img_caption) or ("图" in clean_cap or "Fig" in clean_cap):
+                        img_caption = clean_cap
+                    i += 1
+                    break
+                break
+
+            while i + 1 < len(clean_lines) and re.match(r'^\s*</?(?:div|center|p)\b[^>]*>\s*$', clean_lines[i+1].strip(), re.IGNORECASE):
+                i += 1
+
+            caption_block = ""
+            if img_caption:
+                img_caption = re.sub(r'</?[^>]+>', '', img_caption)
+                caption_block = f"""
+  #v(-0.2em)
+  #align(center)[#text(font: ("PingFang SC", "Songti SC"), size: 9pt, style: "italic", fill: rgb("#475569"))[{img_caption}]]
+  #v(0.4em)
+"""
+            typ_lines.append(f"""
+#block(width: 100%, breakable: false)[
+  #align(center)[
+    #figure(
+      image("{img_path}", width: 100%)
+    )
+  ]
+  {caption_block}
+]
+""")
+            i += 1
+            continue
+
+        
         # 判断行首缩进深度，区分第一级与第二级
         indent = len(line) - len(line.lstrip())
 
@@ -1336,44 +1537,6 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 typ_lines.append(f"- {formatted_body}")
             else:
                 typ_lines.append(f"+ {formatted_body}")
-            i += 1
-            continue
-
-        # =========================================================================
-        # 3. 独立 Markdown 图片语法 ![caption](path)
-        # =========================================================================
-        img_match = re.match(r'^\s*!\[(.*?)\]\((.*?)\)\s*$', stripped)
-        if img_match:
-            img_caption = img_match.group(1).strip()
-            img_path = img_match.group(2).strip()
-
-            # 智能消费紧随其后的斜体/纯文本图题注 (如 *图9-1 ...* 或 _图9-1 ..._)，防止题注双重打印
-            if i + 1 < len(clean_lines):
-                next_raw = clean_lines[i + 1].strip()
-                if (next_raw.startswith("*") and next_raw.endswith("*") and len(next_raw) > 2) or \
-                   (next_raw.startswith("_") and next_raw.endswith("_") and len(next_raw) > 2):
-                    next_caption = next_raw[1:-1].strip()
-                    if not img_caption or (img_caption in next_caption) or (next_caption in img_caption) or ("图" in next_caption or "Fig" in next_caption):
-                        img_caption = next_caption
-                        i += 1
-
-            caption_block = ""
-            if img_caption:
-                caption_block = f"""
-  #v(-0.2em)
-  #align(center)[#text(font: ("PingFang SC", "Songti SC"), size: 9pt, style: "italic", fill: rgb("#475569"))[{img_caption}]]
-  #v(0.4em)
-"""
-            typ_lines.append(f"""
-#block(width: 100%, breakable: false)[
-  #align(center)[
-    #figure(
-      image("{img_path}", width: 100%)
-    )
-  ]
-  {caption_block}
-]
-""")
             i += 1
             continue
 

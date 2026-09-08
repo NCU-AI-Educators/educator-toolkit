@@ -12,7 +12,24 @@ metadata:
 1. 符合高校教材与工业出版级标准的 A4 双面矢量 PDF；
 2. 适合移动端无缝阅读、微信沟通与技术长图分享的高清连续长图 PNG。
 
+## Runtime environment & symlink resolution
+
+- **Installation modes**: Supports project-local installation (`.agents/skills/typst`) and global symlink references (e.g. `~/.agent/skills/typst` or `~/.gemini/config/skills/typst` linked from a central repository).
+- **Symlink & sandbox contract**:
+  - When invoked from a workspace different from the physical installation directory, host IDE file-viewing tools may restrict cross-workspace traversal. The agent **MUST NOT** degrade to manual unvalidated approximations or standard markdown renderers.
+  - The agent **MUST** dynamically resolve the physical skill directory (via `readlink`, Python `os.path.realpath`, or shell inspection) and execute the packaged compiler script directly with Python 3.
+  - Never execute `python3 scripts/ssot_to_typst.py` assuming the current working directory is the skill directory. Always resolve the physical path of `scripts/ssot_to_typst.py` before execution.
+
 ## 1. 触发方式与核心指令
+- **通用跨工作区执行方式 (推荐)**：
+  ```bash
+  # 动态解析真实物理路径执行（适用于任何当前工作目录）
+  python3 "$(python3 -c 'import os, sys; print(os.path.realpath(os.path.expanduser(sys.argv[1])))' ~/.gemini/config/skills/typst/scripts/ssot_to_typst.py)" <input.md> [output.pdf]
+  
+  # 移动端自适应高清长图模式 (PNG)
+  python3 "$(python3 -c 'import os, sys; print(os.path.realpath(os.path.expanduser(sys.argv[1])))' ~/.gemini/config/skills/typst/scripts/ssot_to_typst.py)" <input.md> [output.png] --long --ppi 200
+  ```
+- **技能包本地调试方式**：
 - **A4 纸质教材 / 双面出版模式 (默认)**：
   ```bash
   python3 scripts/ssot_to_typst.py <input.ssot.md> [output.pdf]
