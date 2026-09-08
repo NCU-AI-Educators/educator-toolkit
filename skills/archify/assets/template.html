@@ -3937,6 +3937,18 @@
        ========================================================== */
     .c-grid       { stroke: var(--grid); fill: none; }
     .c-mask       { fill: var(--mask); stroke: none; }
+    g[data-edge-from] rect.c-mask,
+    g[data-edge-key] rect.c-mask {
+      fill: rgba(255, 255, 255, 0.88);
+      stroke: rgba(203, 213, 225, 0.6);
+      stroke-width: 0.8px;
+    }
+    [data-theme="dark"] g[data-edge-from] rect.c-mask,
+    [data-theme="dark"] g[data-edge-key] rect.c-mask {
+      fill: rgba(15, 23, 42, 0.88);
+      stroke: rgba(51, 65, 85, 0.6);
+      stroke-width: 0.8px;
+    }
 
     .c-frontend   { fill: var(--frontend-fill);   stroke: var(--frontend-stroke); }
     .c-backend    { fill: var(--backend-fill);    stroke: var(--backend-stroke); }

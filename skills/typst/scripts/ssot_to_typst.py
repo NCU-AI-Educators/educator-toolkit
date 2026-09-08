@@ -284,8 +284,23 @@ def format_inline_markdown(text: str) -> str:
         return f"__INLINE_MATH_{len(maths)-1}__"
     text = re.sub(r'\$([^\$]+)\$', save_math, text)
 
-    # 规范化数值与章节区间的半角波浪号（如 4.7~4.12），避免被 Typst 误识别为 non-breaking space
-    text = re.sub(r'(\d+(?:\.\d+)*)\s*~\s*(\d+(?:\.\d+)*)', r'\1～\2', text)
+    # 1. 保护行内链接（防止 URL 中的 ~ 或特殊字符被二次转义）
+    links = []
+    def save_link(m):
+        l_text = m.group(1).strip()
+        l_url = m.group(2).strip()
+        links.append((l_text, l_url))
+        return f"__INLINE_LINK_{len(links)-1}__"
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', save_link, text)
+
+    # 2. 支持删除线 ~~strike~~ -> #strike[strike]
+    text = re.sub(r'~~(.*?)~~', r'#strike[\1]', text)
+
+    # 3. 彻底解决 Typst 吞掉波浪号（~）问题：
+    # Typst 在内容标记模式下将未转义半角波浪号 ~ 解释为不换行空格（non-breaking space, U+00A0），
+    # 导致所有区间（如 9月15日 ~ 10月15日、10%~100%）、约数（如 ~5%）、编号（如 SRS-01 ~ SRS-10）等处的波浪号被吞掉不可见。
+    # 将文本中所有未转义半角波浪号统一转义为 \~，使 Typst 100% 渲染为可见的半角波浪号
+    text = re.sub(r'(?<!\\)~', r'\\~', text)
 
     text = text.replace("@", "\\@")
 
@@ -304,20 +319,17 @@ def format_inline_markdown(text: str) -> str:
     text = re.sub(r"<i>(.*?)</i>", r"#emph[\1]", text, flags=re.IGNORECASE)
     text = re.sub(r"</?(?:div|span|p|center|sub|sup|font|em|strong|b|i)[^>]*>", "", text, flags=re.IGNORECASE)
 
-    # 处理行内链接 [text](url)
-    def save_link(m):
-        l_text = m.group(1).strip()
-        l_url = m.group(2).strip()
+    # 4. 还原行内链接
+    for idx, (l_text, l_url) in enumerate(links):
+        l_text_clean = re.sub(r'(?<!\\)~', r'\\~', l_text)
         if l_url.startswith("http://") or l_url.startswith("https://") or l_url.startswith("mailto:"):
-            return f'#link("{l_url}")[{l_text}]'
+            link_expr = f'#link("{l_url}")[{l_text_clean}]'
         elif l_url.startswith("#"):
             anchor_id = re.sub(r'[^a-zA-Z0-9_\-]', '', l_url[1:])
-            if anchor_id:
-                return f'#link(<{anchor_id}>)[{l_text}]'
-            return l_text
+            link_expr = f'#link(<{anchor_id}>)[{l_text_clean}]' if anchor_id else l_text_clean
         else:
-            return f'#link("{l_url}")[{l_text}]'
-    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', save_link, text)
+            link_expr = f'#link("{l_url}")[{l_text_clean}]'
+        text = text.replace(f"__INLINE_LINK_{idx}__", link_expr)
 
     for idx, code_str in enumerate(codes):
         text = text.replace(f"__INLINE_CODE_{idx}__", f'`{code_str}`')
@@ -786,7 +798,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 
     if metadata.get('subtitle'):
         typ_lines.append(f"""    #v(3pt)
-    #text(font: ("PingFang SC", "Heiti SC"), size: 11.5pt, fill: rgb("#475569"))[{metadata['subtitle']}]
+    #text(font: ("PingFang SC", "Heiti SC"), size: 11.5pt, fill: rgb("#475569"))[{format_inline_markdown(metadata['subtitle'])}]
 """)
 
     if not has_frontmatter:
@@ -849,11 +861,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   radius: (right: 4pt)
 )[
   #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
-  #text(weight: "bold", fill: rgb("#0f172a"), font: ("PingFang SC", "Heiti SC"))[【摘　要】] #text(fill: rgb("#334155"))[{metadata['abstract']}]
+  #text(weight: "bold", fill: rgb("#0f172a"), font: ("PingFang SC", "Heiti SC"))[【摘　要】] #text(fill: rgb("#334155"))[{format_inline_markdown(metadata['abstract'])}]
 """)
         if metadata.get('keywords'):
             typ_lines.append(f"""  #v(4pt)
-  #text(weight: "bold", fill: rgb("#0f172a"), font: ("PingFang SC", "Heiti SC"))[【关键词】] #text(fill: rgb("#0369a1"))[{metadata['keywords']}]
+  #text(weight: "bold", fill: rgb("#0f172a"), font: ("PingFang SC", "Heiti SC"))[【关键词】] #text(fill: rgb("#0369a1"))[{format_inline_markdown(metadata['keywords'])}]
 """)
         typ_lines.append("]\n#v(0.6em)\n")
 
