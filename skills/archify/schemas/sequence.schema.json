@@ -58,6 +58,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "title": { "$ref": "common.schema.json#/$defs/legendTitle" },
             "mode": { "$ref": "common.schema.json#/$defs/legendMode" },
             "entries": {
               "type": "object",

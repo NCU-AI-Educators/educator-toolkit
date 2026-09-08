@@ -401,4 +401,28 @@ test('measured legend rows share baselines and stay within the viewBox for local
   }
 });
 
+
+test("custom legend title renders across all five public renderers and validates title bounds", () => {
+  for (const type of Object.keys(FIXTURES)) {
+    const title = `Custom ${type} Roles / 核心角色分类`;
+    const svg = canonicalSvg(render(type, withLegend(type, { title })));
+    assert.match(svg, new RegExp(`>${title}<`), type);
+  }
+
+  for (const type of Object.keys(FIXTURES)) {
+    const emptyFailure = validateFailure(type, withLegend(type, { title: "" }));
+    assert.ok(
+      emptyFailure.diagnostics.some((d) => d.subject.path === "/meta/legend/title"),
+      `${type}: expected diagnostic for empty title`
+    );
+
+    const longTitle = "A".repeat(81);
+    const longFailure = validateFailure(type, withLegend(type, { title: longTitle }));
+    assert.ok(
+      longFailure.diagnostics.some((d) => d.subject.path === "/meta/legend/title"),
+      `${type}: expected diagnostic for over-length title`
+    );
+  }
+});
+
 process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));

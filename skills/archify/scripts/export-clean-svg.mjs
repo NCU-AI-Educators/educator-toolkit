@@ -356,6 +356,124 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
       var styleNodes = clone.querySelectorAll('style');
       styleNodes.forEach(function(s) { s.remove(); });
 
+      // 3.5 工作流泳道与阶段标头水平对称重排：彻底消除右侧由于默认列数产生的幽灵空白
+      var newLaneRight = null;
+      try {
+        var laneRects = Array.from(clone.querySelectorAll('rect[data-graph-role="structural-frame"][data-composition-frame-kind="lane"], rect.c-lane:not([data-composition-frame-kind="group"])'));
+        var nodeCards = Array.from(clone.querySelectorAll('[data-node-id] rect:not(.c-mask)'));
+        var groupRects = Array.from(clone.querySelectorAll('rect[data-composition-frame-kind="group"]'));
+
+        if (laneRects.length > 0 && nodeCards.length > 0) {
+          var minNodeX = Infinity;
+          var maxNodeRight = -Infinity;
+
+          [...nodeCards, ...groupRects].forEach(function(r) {
+            var x = parseFloat(r.getAttribute('x') || '0');
+            var w = parseFloat(r.getAttribute('width') || '0');
+            if (x < minNodeX) minNodeX = x;
+            if (x + w > maxNodeRight) maxNodeRight = x + w;
+          });
+
+          // 纳入连线药丸标签以防文字凸出
+          var edgeLabels = Array.from(clone.querySelectorAll('g[data-edge-id] rect.c-mask, g[data-edge-id] text'));
+          edgeLabels.forEach(function(el) {
+            var ex = parseFloat(el.getAttribute('x') || '0');
+            var ew = parseFloat(el.getAttribute('width') || '0');
+            if (ew > 0 && ex + ew > maxNodeRight) maxNodeRight = ex + ew;
+          });
+
+          var currentLaneW = parseFloat(laneRects[0].getAttribute('width') || '0');
+          var currentLaneX = parseFloat(laneRects[0].getAttribute('x') || '0');
+          var currentLaneRight = currentLaneX + currentLaneW;
+
+          // 若右侧存在多余留白 (> 30px)，执行精准裁剪与对称化
+          if (currentLaneRight - maxNodeRight > 30) {
+            var laneInset = 20;
+            // 保护左侧泳道标题文字 (通常在 x = 54 左右)
+            var minLaneX = Math.min(40, Math.floor(minNodeX - laneInset));
+            var targetLaneRight = Math.ceil(maxNodeRight + laneInset);
+            var newLaneW = targetLaneRight - minLaneX;
+            newLaneRight = targetLaneRight;
+
+            laneRects.forEach(function(lane) {
+              lane.setAttribute('x', minLaneX.toString());
+              lane.setAttribute('width', newLaneW.toString());
+            });
+
+            // 泳道序号小标题左对齐到泳道内边距
+            var laneTexts = clone.querySelectorAll('text.t-dim');
+            laneTexts.forEach(function(t) {
+              t.setAttribute('x', (minLaneX + 14).toString());
+            });
+
+            // 重新对齐各列阶段标头线与文字
+            var colCenterMap = {};
+            nodeCards.forEach(function(r) {
+              var x = parseFloat(r.getAttribute('x') || '0');
+              var w = parseFloat(r.getAttribute('width') || '0');
+              var cx = Math.round(x + w / 2);
+              colCenterMap[cx] = true;
+            });
+            var colCenters = Object.keys(colCenterMap).map(Number).sort(function(a, b) { return a - b; });
+
+            var phaseLines = Array.from(clone.querySelectorAll('line[class*="a-"]'));
+            var phaseMasks = Array.from(clone.querySelectorAll('rect.c-mask')).filter(function(r) {
+              return !r.closest('[data-node-id]') && !r.closest('g[data-edge-id]');
+            });
+            var phaseTexts = Array.from(clone.querySelectorAll('text.t-muted, text.t-backend, text.t-messagebus'));
+
+            if (colCenters.length >= phaseLines.length && phaseLines.length > 0) {
+              for (var pi = 0; pi < phaseLines.length; pi++) {
+                var colCx = colCenters[pi];
+                var pLine = phaseLines[pi];
+                var pMask = phaseMasks[pi];
+                var pText = phaseTexts[pi];
+
+                var lineHalfW = 95;
+                if (pLine) {
+                  pLine.setAttribute('x1', (colCx - lineHalfW).toString());
+                  pLine.setAttribute('x2', (colCx + lineHalfW).toString());
+                }
+                if (pMask) {
+                  pMask.setAttribute('x', (colCx - 85).toString());
+                  pMask.setAttribute('width', '170');
+                }
+                if (pText) {
+                  pText.setAttribute('x', colCx.toString());
+                  pText.setAttribute('text-anchor', 'middle');
+                }
+              }
+            }
+
+            // 图例左边界与动态项间距排版，精准移动实际色块与文本
+            var legendG = clone.querySelector('g[data-legend]');
+            if (legendG) {
+              var legendTitle = legendG.querySelector('text.t-primary');
+              if (legendTitle) {
+                legendTitle.setAttribute('x', minLaneX.toString());
+              }
+              var curLegendX = minLaneX + 46;
+              var legendItems = legendG.querySelectorAll('g[data-legend-kind], g[data-legend-semantic-kind]');
+              legendItems.forEach(function(item) {
+                var rect = item.querySelector('rect[class*="c-"]') || item.querySelector('rect:not([data-legend-bridge-runtime])');
+                var text = item.querySelector('text:not([data-legend-count])');
+                var textContent = text ? text.textContent.trim() : '';
+                var textW = 0;
+                for (var ci = 0; ci < textContent.length; ci++) {
+                  textW += textContent.charCodeAt(ci) > 255 ? 12.5 : 7.2;
+                }
+                var rectW = 14;
+                if (rect) rect.setAttribute('x', curLegendX.toString());
+                if (text) text.setAttribute('x', (curLegendX + rectW + 6).toString());
+                curLegendX += Math.ceil(rectW + 6 + textW + 24);
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Workflow layout harmonization error:', e);
+      }
+
       // 4. 通用自适应视口边界与留白重算：消除顶部过宽空白，防止右侧虚线框被裁切
       try {
         var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -375,19 +493,10 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
           'g[id^="legend"]',
           'text'
         ];
-        var contentElements = svg.querySelectorAll(entitySelectors.join(','));
+        var contentElements = clone.querySelectorAll(entitySelectors.join(','));
         contentElements.forEach(function(el) {
           if (el.closest && el.closest('defs, pattern, .semantic-sigil')) return;
           if (el.tagName.toLowerCase() === 'rect' && (el.getAttribute('width') === '100%' || el.getAttribute('id') === 'grid')) return;
-          try {
-            var b = el.getBBox();
-            if (b && b.width > 0 && b.height > 0) {
-              if (b.x < minX) minX = b.x;
-              if (b.y < minY) minY = b.y;
-              if (b.x + b.width > maxX) maxX = b.x + b.width;
-              if (b.y + b.height > maxY) maxY = b.y + b.height;
-            }
-          } catch (e) {}
 
           // 显式几何属性探测防御（特别包含 c-region、c-security-group 等容器与泳道）
           var x = parseFloat(el.getAttribute('x') || el.getAttribute('x1') || '0');
@@ -409,10 +518,27 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
           }
         });
 
+        // 探测原始页面中 text 节点的真实渲染包围盒，确保文字不被截断
+        var textElements = svg.querySelectorAll('text');
+        textElements.forEach(function(t) {
+          if (t.closest && t.closest('defs, pattern, .semantic-sigil')) return;
+          try {
+            var b = t.getBBox();
+            if (b && b.width > 0 && b.height > 0) {
+              if (b.y < minY && b.y >= 0) minY = b.y;
+              if (b.y + b.height > maxY) maxY = b.y + b.height;
+              if (b.x < minX && b.x >= 0) minX = b.x;
+              // 水平右边界保护：若文本没有超出新泳道右侧，则纳入 maxX
+              if (b.x + b.width > maxX && (!newLaneRight || b.x + b.width <= newLaneRight + 30)) {
+                maxX = b.x + b.width;
+              }
+            }
+          } catch (e) {}
+        });
+
         if (minX !== Infinity && maxX !== -Infinity) {
-          // 对称优雅的出版级留白：左右留出 24px，上下留出 24px
-          var padX = 24;
-          var padY = 24;
+          var padX = 20;
+          var padY = 18;
           var vbMinX = Math.floor(minX - padX);
           var vbMinY = Math.floor(minY - padY);
           var vbWidth = Math.ceil((maxX - minX) + padX * 2);

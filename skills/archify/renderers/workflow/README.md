@@ -94,9 +94,10 @@ It deliberately omits solver iterations and candidate scores.
 
 The default legend derives component kinds from `nodes[].type`. Supported
 `meta.legend.entries` keys, in stable order, are `frontend`, `backend`,
-`security`, `messagebus`, `database`, `cloud`, and `external`. Labels and
-visibility may be overridden through the shared legend contract; only kinds
-backed by rendered nodes receive Semantic Legend controls.
+`security`, `messagebus`, `database`, `cloud`, and `external`. Heading title,
+labels, and visibility may be overridden through the shared legend contract
+(`meta.legend.title`, `meta.legend.entries.<kind>.label`); only kinds backed by
+rendered nodes receive Semantic Legend controls.
 
 ## Layout contracts
 
@@ -127,6 +128,7 @@ a verified migration-to-v2 repair; v1 never falls through to adaptive layout.
 | Invariant | Contract |
 |----------|----------|
 | Logical columns | `col` is an integer in `0..5`; pixel centers are measured output |
+| Adaptive columns | Canvas tight-fits authored columns (`max(1, maxAuthoredCol + 1)`); override with `meta.columns` (`1..6`) |
 | Adjacent-rank baseline | 120px center distance before document-specific constraints |
 | Same-lane node clearance | ≥8px when vertical node intervals overlap |
 | Facing direct edge | clear gap ≥`max(28px, measured label mask width + 8px)` |

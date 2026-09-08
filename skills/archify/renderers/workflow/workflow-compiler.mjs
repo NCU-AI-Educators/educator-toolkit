@@ -157,7 +157,21 @@ function verticalIntervalsOverlap(a, b, clearance = 0) {
 }
 
 function createReadableLayout(workflow, layoutFeedback = {}) {
-  const columnCount = 6;
+  const nodes = asArray(workflow.nodes);
+  const phases = asArray(workflow.phases);
+  const groups = asArray(workflow.groups);
+  const maxAuthoredCol = Math.max(
+    -1,
+    ...nodes.filter((n) => Number.isInteger(n.col)).map((n) => n.col),
+    ...phases.filter((p) => Number.isInteger(p.toCol)).map((p) => p.toCol),
+    ...groups.filter((g) => Number.isInteger(g.toCol)).map((g) => g.toCol),
+  );
+  const compactDesired = workflow.meta?.layout !== 'standard';
+  const columnCount = Number.isInteger(workflow.meta?.columns) && workflow.meta.columns > 0
+    ? workflow.meta.columns
+    : compactDesired
+      ? Math.max(1, maxAuthoredCol + 1)
+      : 6;
   const baselinePitch = 120;
   const columnStart = 94;
   const maxLayoutIterations = 3;
@@ -167,7 +181,6 @@ function createReadableLayout(workflow, layoutFeedback = {}) {
   const channelLabelEdgeKeys = new Set();
   const widthContributors = new Set();
   const heightContributors = new Set();
-  const nodes = asArray(workflow.nodes);
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
 
   for (let col = 0; col < columnCount - 1; col += 1) {
@@ -831,23 +844,17 @@ const workflowLegendEntries = resolveLegend(
   presentLegendKinds,
 );
 const legendFootprintOptions = { fontSize: 7, itemGap: 7 };
-const oneRowLegendFootprint = legendFootprint(workflowLegendEntries, {
-  ...legendFootprintOptions,
-  width: Number.MAX_SAFE_INTEGER,
-});
-const minimumCanvasWidth = workflow.schema_version === 2
-  ? Math.max(layout.defaultViewBoxWidth, oneRowLegendFootprint.minWidth + 40)
+const candidateCanvasWidth = workflow.schema_version === 2
+  ? (workflow.meta?.viewBox?.[0] ?? layout.defaultViewBoxWidth)
   : layout.defaultViewBoxWidth;
-const legendPackingWidth = Math.max(
-  1,
-  (workflow.schema_version === 2
-    ? minimumCanvasWidth
-    : (workflow.meta?.viewBox?.[0] ?? minimumCanvasWidth)) - 40,
-);
+const legendPackingWidth = Math.max(1, candidateCanvasWidth - 40);
 const packedLegendFootprint = legendFootprint(workflowLegendEntries, {
   ...legendFootprintOptions,
   width: legendPackingWidth,
 });
+const minimumCanvasWidth = workflow.schema_version === 2
+  ? Math.max(layout.defaultViewBoxWidth, packedLegendFootprint.minWidth + 40)
+  : layout.defaultViewBoxWidth;
 const legendExtraHeight = workflow.schema_version === 2
   ? packedLegendFootprint.extraHeight
   : 0;
@@ -927,7 +934,7 @@ function workflowLegendRects() {
   const measured = measureLegend(workflowLegendEntries, workflowLegendLayout());
   if (!measured) return [];
   return [
-    { kind: 'title', x: 20, y: measured.titleY - 10, width: 48, height: 14 },
+    { kind: 'title', x: 20, y: measured.titleY - 10, width: measured.titleWidth || 48, height: 14 },
     ...measured.entries.map((entry) => ({
       kind: entry.kind,
       x: entry.x,

@@ -49,12 +49,15 @@ the schema version already selected for that renderer:
 
 ```json
 "legend": {
+  "title": "System roles",
   "mode": "auto",
   "entries": {
     "security": { "label": "restricted data", "visible": true }
   }
 }
 ```
+
+`title` optionally overrides the localized default heading ("Legend" / "图例") with a custom label (1-80 characters).
 
 `mode` is `auto` (the default), `all`, or `hidden`. `auto` includes only kinds
 present in typed IR; `all` includes the renderer's full stable catalog;

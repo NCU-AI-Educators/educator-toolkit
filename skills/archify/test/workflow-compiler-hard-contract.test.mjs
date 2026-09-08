@@ -208,7 +208,7 @@ test('readable-v2 evaluates automatic endpoint sides against the complete labele
 
   const result = compileWorkflow({ workflow: document, qualityProfile: 'standard' });
   assert.equal(result.ok, true, JSON.stringify(result.diagnostics, null, 2));
-  assert.deepEqual(result.receipt.viewBox, [768, 404]);
+  assert.deepEqual(result.receipt.viewBox, [696, 404]);
   assert.deepEqual(result.receipt.edges[0].points, [
     [94, 145], [94, 166], [214, 166], [214, 217],
   ]);
@@ -356,14 +356,14 @@ test('readable-v2 feeds a measured outside-channel constraint back into layout',
   const first = compileWorkflow({ workflow: document });
   const second = compileWorkflow({ workflow: clone(document) });
   assert.equal(first.ok, true, JSON.stringify(first.diagnostics, null, 2));
-  assert.deepEqual(first.receipt.viewBox, [780, 404]);
-  assert.deepEqual(first.receipt.requiredViewBox, [780, 404]);
+  assert.deepEqual(first.receipt.viewBox, [740, 404]);
+  assert.deepEqual(first.receipt.requiredViewBox, [740, 404]);
   assert.deepEqual(first.receipt.edges[0].points, [
-    [140, 119], [764, 119], [764, 243], [140, 243],
+    [140, 119], [722, 119], [722, 243], [140, 243],
   ]);
   assert.deepEqual(
     { x: first.receipt.labels[0].x, y: first.receipt.labels[0].y },
-    { x: 452, y: 109 },
+    { x: 431, y: 109 },
   );
   assert.equal(second.svg, first.svg);
   assert.equal(JSON.stringify(second.receipt), JSON.stringify(first.receipt));
@@ -698,11 +698,11 @@ test('readable-v2 treats an omitted preset side as a solver choice', () => {
       expected: [[140, 119], [288, 119]],
     },
     { route: 'drop', document: crossLane('drop'), expected: [[94, 145], [94, 166], [334, 166], [334, 217]] },
-    { route: 'outside-right', document: crossLane('outside-right'), expected: [[140, 119], [764, 119], [764, 243], [380, 243]] },
+    { route: 'outside-right', document: crossLane('outside-right'), expected: [[140, 119], [692, 119], [692, 243], [380, 243]] },
     { route: 'return-left', document: crossLane('return-left'), expected: [[48, 119], [20, 119], [20, 243], [288, 243]] },
     { route: 'bottom-channel', document: crossLane('bottom-channel'), expected: [[94, 145], [94, 301], [334, 301], [334, 269]] },
     { route: 'up-channel', document: crossLane('up-channel'), expected: [[94, 93], [94, 65], [334, 65], [334, 217]] },
-    { route: 'outside-right partial', document: crossLane('outside-right', { fromSide: 'right' }), expected: [[140, 119], [764, 119], [764, 243], [380, 243]] },
+    { route: 'outside-right partial', document: crossLane('outside-right', { fromSide: 'right' }), expected: [[140, 119], [692, 119], [692, 243], [380, 243]] },
   ];
 
   for (const fixture of cases) {
@@ -2132,4 +2132,37 @@ test('fixed-v1 verifies the exact serialized values in every rounded-width repai
       `advertised fix must recompile: ${fix}\n${JSON.stringify(verified.diagnostics, null, 2)}`,
     );
   }
+});
+
+test('readable-v2 supports compact adaptive column count and explicit meta.columns', () => {
+  const baseDoc = {
+    schema_version: 2,
+    diagram_type: 'workflow',
+    meta: { title: 'Columns test', legend: { mode: 'hidden' } },
+    lanes: [{ id: 'l1', label: 'L1' }],
+    nodes: [
+      { id: 'n0', lane: 'l1', col: 0, type: 'backend', label: 'N0' },
+      { id: 'n1', lane: 'l1', col: 1, type: 'backend', label: 'N1' },
+      { id: 'n2', lane: 'l1', col: 2, type: 'backend', label: 'N2' },
+      { id: 'n3', lane: 'l1', col: 3, type: 'backend', label: 'N3' },
+    ],
+    edges: [
+      { id: 'e1', from: 'n0', to: 'n1' },
+      { id: 'e2', from: 'n1', to: 'n2' },
+      { id: 'e3', from: 'n2', to: 'n3' },
+    ],
+  };
+
+  // Adaptive compact (max col is 3 -> 4 columns)
+  const compactResult = compileWorkflow({ workflow: baseDoc, qualityProfile: 'standard' });
+  assert.equal(compactResult.ok, true);
+  assert.equal(compactResult.receipt.columns.length, 4);
+
+  // Explicit columns: 6
+  const fixed6Doc = JSON.parse(JSON.stringify(baseDoc));
+  fixed6Doc.meta.columns = 6;
+  const fixed6Result = compileWorkflow({ workflow: fixed6Doc, qualityProfile: 'standard' });
+  assert.equal(fixed6Result.ok, true);
+  assert.equal(fixed6Result.receipt.columns.length, 6);
+  assert.ok(fixed6Result.receipt.viewBox[0] > compactResult.receipt.viewBox[0]);
 });

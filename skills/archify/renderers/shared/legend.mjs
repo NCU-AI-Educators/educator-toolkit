@@ -38,7 +38,7 @@ export function resolveLegend(config, catalog, presentKinds) {
   const present = presentKinds instanceof Set ? presentKinds : new Set(presentKinds || []);
   const overrides = config?.entries || {};
 
-  return catalog.flatMap((catalogEntry) => {
+  const entries = catalog.flatMap((catalogEntry) => {
     const override = overrides[catalogEntry.kind] || {};
     const selectedByMode = mode === 'all' || present.has(catalogEntry.kind);
     const visible = override.visible === true || (selectedByMode && override.visible !== false);
@@ -50,6 +50,10 @@ export function resolveLegend(config, catalog, presentKinds) {
       interactive: catalogEntry.interactive !== false && present.has(catalogEntry.kind),
     }];
   });
+  if (config?.title) {
+    entries.title = config.title;
+  }
+  return entries;
 }
 
 function measuredEntryWidth(entry, fontSize, swatchGap) {
@@ -113,6 +117,8 @@ export function measureLegend(entries, {
   obstacles = [],
   unfit = 'error',
   diagramType = 'diagram',
+  title,
+  locale,
 } = {}) {
   if (!entries.length) return { entries: [], rowCount: 0, titleY: null };
   const footprint = legendFootprint(entries, { width, fontSize, itemGap, lineGap, swatchGap });
@@ -155,8 +161,10 @@ export function measureLegend(entries, {
     }
   });
 
+  const titleText = title || entries.title || translateMessage(locale, 'legend.title');
+  const titleWidth = Math.max(48, Math.ceil(textUnits(titleText) * 12 * TEXT_ADVANCE_EM));
   const legendRects = [
-    { kind: 'title', x, y: legendTopY, width: 48, height: 14 },
+    { kind: 'title', x, y: legendTopY, width: titleWidth, height: 14 },
     ...positioned.map((entry) => ({
       kind: entry.kind,
       x: entry.x,
@@ -187,20 +195,23 @@ export function measureLegend(entries, {
     entries: positioned,
     rowCount: footprint.rowCount,
     titleY,
+    titleWidth,
     fontSize,
   };
 }
 
-export function renderLegend({ entries, layout, renderSwatch, locale }) {
+export function renderLegend({ entries, layout, renderSwatch, locale, title }) {
   if (!entries.length) return '';
-  const measured = measureLegend(entries, layout);
+  const effectiveTitle = title || layout?.title || entries.title;
+  const measured = measureLegend(entries, { ...layout, title: effectiveTitle, locale });
   if (!measured) return '';
   const hasInteractiveEntries = measured.entries.some((entry) => entry.interactive);
   const renderedFontSize = measured.fontSize < 8 ? measured.fontSize + 0.5 : measured.fontSize + 2;
   const rootAttributes = hasInteractiveEntries ? ' data-legend="" data-legend-bridge=""' : ' data-legend=""';
+  const resolvedTitle = effectiveTitle || translateMessage(locale, 'legend.title');
   const parts = [
     `        <g${rootAttributes}>`,
-    `          <text x="${layout.x}" y="${measured.titleY}" class="t-primary" font-size="12" font-weight="650">${esc(translateMessage(locale, 'legend.title'))}</text>`,
+    `          <text x="${layout.x}" y="${measured.titleY}" class="t-primary" font-size="12" font-weight="650">${esc(resolvedTitle)}</text>`,
   ];
 
   for (const entry of measured.entries) {

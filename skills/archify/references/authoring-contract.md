@@ -15,7 +15,7 @@ Do not invent fields. Use the nearest matching example for structure, then autho
 ## Workflow layout contracts
 
 Use schema v2 for new workflows and keep schema v1 when an existing source must
-retain fixed geometry. In both versions, `col` stays in `0..5` and semantic
+retain fixed geometry. In both versions, `col` stays in `0..5` (the canvas automatically tight-fits authored columns unless `meta.columns` is specified) and semantic
 edge labels are never deleted as a spacing repair. Do not change only
 `schema_version` when absolute coordinates exist: follow the canonical
 [migration and layout-receipt contract](../renderers/workflow/README.md#migration-and-layout-receipt).
@@ -25,11 +25,14 @@ The complete normative invariants live in the workflow renderer's
 ## Legend contract
 
 Omit `meta.legend` for the truthful default: `auto` lists only semantic kinds
-present in typed IR. Use `mode: "all"` for a renderer reference or
-`mode: "hidden"` to remove the full legend. Under `entries`, only keys listed
-by the selected mode schema are valid; each key accepts `label`, `visible`, or
-both. `visible: true` may show an unused supported convention, while
-`visible: false` hides it. `hidden` cannot be overridden.
+present in typed IR. Set `title` to override the localized default legend
+heading ("Legend" / "图例") with a bounded custom title (1-80 characters);
+the renderer dynamically measures title width to ensure collision-free clearance.
+Use `mode: "all"` for a renderer reference or `mode: "hidden"` to remove the
+full legend. Under `entries`, only keys listed by the selected mode schema are
+valid; each key accepts `label`, `visible`, or both. `visible: true` may
+show an unused supported convention, while `visible: false` hides it.
+`hidden` cannot be overridden.
 
 A label override changes reader wording only. Never infer a kind from prose or
 use the legend to compensate for missing nodes, states, messages, or flows.

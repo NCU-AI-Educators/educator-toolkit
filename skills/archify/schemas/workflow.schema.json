@@ -69,18 +69,37 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "mode": { "$ref": "common.schema.json#/$defs/legendMode" },
+            "title": {
+              "$ref": "common.schema.json#/$defs/legendTitle"
+            },
+            "mode": {
+              "$ref": "common.schema.json#/$defs/legendMode"
+            },
             "entries": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "frontend": { "$ref": "common.schema.json#/$defs/legendEntry" },
-                "backend": { "$ref": "common.schema.json#/$defs/legendEntry" },
-                "database": { "$ref": "common.schema.json#/$defs/legendEntry" },
-                "cloud": { "$ref": "common.schema.json#/$defs/legendEntry" },
-                "security": { "$ref": "common.schema.json#/$defs/legendEntry" },
-                "messagebus": { "$ref": "common.schema.json#/$defs/legendEntry" },
-                "external": { "$ref": "common.schema.json#/$defs/legendEntry" }
+                "frontend": {
+                  "$ref": "common.schema.json#/$defs/legendEntry"
+                },
+                "backend": {
+                  "$ref": "common.schema.json#/$defs/legendEntry"
+                },
+                "database": {
+                  "$ref": "common.schema.json#/$defs/legendEntry"
+                },
+                "cloud": {
+                  "$ref": "common.schema.json#/$defs/legendEntry"
+                },
+                "security": {
+                  "$ref": "common.schema.json#/$defs/legendEntry"
+                },
+                "messagebus": {
+                  "$ref": "common.schema.json#/$defs/legendEntry"
+                },
+                "external": {
+                  "$ref": "common.schema.json#/$defs/legendEntry"
+                }
               }
             }
           }
@@ -90,7 +109,7 @@
           "prefixItems": [
             {
               "type": "number",
-              "minimum": 700
+              "minimum": 400
             },
             {
               "type": "number",
@@ -100,6 +119,17 @@
           "items": false,
           "minItems": 2,
           "maxItems": 2
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "layout": {
+          "enum": [
+            "compact",
+            "standard"
+          ]
         }
       }
     },
