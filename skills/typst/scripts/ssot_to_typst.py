@@ -1001,7 +1001,21 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             next_landscape_isolated = False
         else:
             if last_table_caption:
-                typ_lines.append(f"""
+                # 针对行数适中的单页表格（<= 16行），将表名与表格原子化包裹于 breakable: false 块中，
+                # 彻底杜绝表名在页面底部孤悬、表格内容推入下一页的分离现象，同时联动保持标题不孤行
+                is_compact_table = (len(table_buffer) <= 16)
+                if is_compact_table:
+                    typ_lines.append(f"""
+#block(width: 100%, breakable: false)[
+  #v(0.2em)
+  #align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
+  #v(-0.1em)
+  {tbl_rendered}
+  #v(0.4em)
+]
+""")
+                else:
+                    typ_lines.append(f"""
 #v(0.2em)
 #align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
 #v(-0.1em)
