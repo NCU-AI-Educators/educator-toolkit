@@ -878,6 +878,144 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     code_lang = ""
     code_buffer = []
     section_list_counter = 0
+    next_landscape = False
+    next_landscape_isolated = False
+    next_table_landscape = False
+    next_table_portrait = False
+    in_landscape_block = False
+
+    def try_absorb_preceding_header(buffer):
+        """
+        智能回溯检查：如果横向图/宽表格紧邻前置内容仅为 1~2 个标题和一段简短图前引言（<= 120字），
+        自动将其吸纳合并移入当前横向页顶部展示，彻底消除前一页仅有少量内容的空白残页。
+        """
+        idx = len(buffer) - 1
+        while idx >= 0 and not buffer[idx].strip():
+            idx -= 1
+        if idx < 0:
+            return None
+
+        collected_indices = []
+
+        # 阶段 1：尾部可选的短引导段落（最多 1 个段落，不能是列表、代码、表格）
+        curr = idx
+        tail_chunk = buffer[curr].strip()
+        is_heading = bool(re.match(r"^\s*={1,4}\s+", tail_chunk) or tail_chunk.startswith("#heading"))
+
+        if not is_heading:
+            if any(bad in tail_chunk for bad in ["#table", "#figure", "#image", "#block", "```", "- ", "+ ", "#list", "#enum"]):
+                return None
+            if len(tail_chunk) > 120:
+                return None
+            collected_indices.append(curr)
+            curr -= 1
+            while curr >= 0 and not buffer[curr].strip():
+                collected_indices.append(curr)
+                curr -= 1
+
+        # 阶段 2：向上收集紧邻的 1~2 个小节或大章节标题
+        heading_count = 0
+        while curr >= 0:
+            c = buffer[curr].strip()
+            if not c:
+                collected_indices.append(curr)
+                curr -= 1
+                continue
+            if re.match(r"^\s*={1,4}\s+", c) or c.startswith("#heading"):
+                heading_count += 1
+                collected_indices.append(curr)
+                curr -= 1
+                if heading_count >= 2:
+                    break
+            else:
+                break
+
+        if heading_count == 0:
+            return None
+
+        # 阶段 3：如果标题上方紧邻 #pagebreak，则一并清理以彻底消灭前一页残页
+        min_idx = min(collected_indices)
+        prev = min_idx - 1
+        while prev >= 0 and not buffer[prev].strip():
+            prev -= 1
+        remove_start = min_idx
+        if prev >= 0 and ("#pagebreak" in buffer[prev] or buffer[prev].strip().startswith("#pagebreak")):
+            remove_start = prev
+
+        extracted_chunks = [buffer[k] for k in sorted(collected_indices) if buffer[k].strip() and not buffer[k].strip().startswith("#pagebreak")]
+        del buffer[remove_start:]
+        return "\n\n".join(extracted_chunks)
+
+    def flush_table():
+        nonlocal in_table, table_buffer, last_table_caption
+        nonlocal next_table_landscape, next_table_portrait, next_landscape, next_landscape_isolated
+        if not in_table or not table_buffer:
+            in_table = False
+            table_buffer = []
+            return
+
+        table_str = "\n".join(table_buffer)
+        tbl_rendered = parse_markdown_table_to_typst(table_str)
+        if not tbl_rendered:
+            in_table = False
+            table_buffer = []
+            return
+
+        # 计算表格真实最大列数
+        num_cols = 0
+        for l in table_buffer:
+            l_clean = l.strip()
+            if l_clean.startswith("|"):
+                l_clean = l_clean[1:]
+            if l_clean.endswith("|"):
+                l_clean = l_clean[:-1]
+            cols = [c.strip() for c in l_clean.split("|")]
+            if not all(re.match(r'^:?-+:?$', c) for c in cols):
+                num_cols = max(num_cols, len(cols))
+
+        is_wide_table = (num_cols >= 7 or next_table_landscape or next_landscape) and not next_table_portrait and mode != "long" and not in_landscape_block
+
+        if is_wide_table:
+            absorbed_header = None
+            if not next_landscape_isolated:
+                absorbed_header = try_absorb_preceding_header(typ_lines)
+
+            caption_block = ""
+            if last_table_caption:
+                caption_block = f"  #align(center)[#text(font: (\"PingFang SC\", \"Songti SC\", \"SimSun\"), size: 9pt, style: \"italic\", fill: rgb(\"#475569\"))[{last_table_caption}]]\n  #v(-0.1em)\n"
+                last_table_caption = None
+
+            header_block = ""
+            if absorbed_header:
+                header_block = f"  {absorbed_header}\n  #v(0.4em)\n"
+
+            typ_lines.append(f"""
+#page(flipped: true)[
+  #set align(left + top)
+{header_block}{caption_block}  {tbl_rendered}
+]
+""")
+            next_table_landscape = False
+            next_table_portrait = False
+            next_landscape = False
+            next_landscape_isolated = False
+        else:
+            if last_table_caption:
+                typ_lines.append(f"""
+#v(0.2em)
+#align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
+#v(-0.1em)
+{tbl_rendered}
+#v(0.4em)
+""")
+                last_table_caption = None
+            else:
+                typ_lines.append(f"\n{tbl_rendered}\n")
+            next_table_landscape = False
+            next_table_portrait = False
+
+        table_buffer = []
+        in_table = False
 
     while i < len(clean_lines):
         line = clean_lines[i]
@@ -1090,7 +1228,23 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                         else:
                             i += 1
 
-                        typ_lines.append(f"""
+                        if next_landscape and mode != "long" and not in_landscape_block:
+                            typ_lines.append(f"""
+#page(flipped: true)[
+  #set align(center + horizon)
+  #block(width: 100%, breakable: false)[
+    #align(center)[
+      #figure(
+        image("{rel_img}", width: 100%, height: 132mm, fit: "contain")
+      )
+    ]
+    {caption_snippet}
+  ]
+]
+""")
+                            next_landscape = False
+                        else:
+                            typ_lines.append(f"""
 #block(width: 100%, breakable: false)[
   #align(center)[
     #figure(
@@ -1129,20 +1283,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             i += 1
             continue
         elif in_table:
-            tbl_rendered = parse_markdown_table_to_typst("\n".join(table_buffer))
-            if last_table_caption:
-                typ_lines.append(f"""
-#v(0.2em)
-#align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
-#v(-0.1em)
-{tbl_rendered}
-#v(0.4em)
-""")
-                last_table_caption = None
-            else:
-                typ_lines.append(f"\n{tbl_rendered}\n")
-            table_buffer = []
-            in_table = False
+            flush_table()
 
         # 空行
         if not stripped:
@@ -1153,6 +1294,43 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         # 显式声明分页：Markdown 标准注释与 LaTeX 命令（彻底将分页控制权交还 SSOT 源码）
         if re.match(r'^<!--\s*(?:page\s*break|newpage)\s*-->$', stripped, re.IGNORECASE) or stripped == r"\newpage" or re.match(r'^<div\s+[^>]*page-break-(?:before|after)\s*:\s*always[^>]*>\s*</div>$', stripped, re.IGNORECASE):
             typ_lines.append("#pagebreak(weak: true)")
+            i += 1
+            continue
+
+        # 表格专属版向控制标记：<!-- table:landscape --> 或 <!-- table:portrait -->
+        m_tbl_dir = re.match(r'^<!--\s*table:(landscape|portrait)(?::(no-absorb|isolated|exact))?\s*-->$', stripped, re.IGNORECASE)
+        if m_tbl_dir:
+            direction = m_tbl_dir.group(1).lower()
+            if direction == "landscape":
+                next_table_landscape = True
+                if m_tbl_dir.group(2):
+                    next_landscape_isolated = True
+            else:
+                next_table_portrait = True
+            i += 1
+            continue
+
+        # 显式声明横版独立页标记：<!-- landscape --> 或 <!-- pagebreak:landscape --> 或 <!-- page:landscape -->
+        # 支持 :no-absorb / :isolated / :exact 强制不自动吸纳前置小节标题，遵从编写者单图独立设计意图
+        m_land = re.match(r'^<!--\s*(?:landscape|pagebreak:landscape|page:landscape)(?::(no-absorb|isolated|exact))?\s*-->$', stripped, re.IGNORECASE)
+        if m_land:
+            next_landscape = True
+            next_landscape_isolated = (m_land.group(1) is not None)
+            i += 1
+            continue
+
+        # 显式声明多块横版区域包裹：<!-- landscape-start --> 与 <!-- landscape-end -->（方案 A 显式块）
+        if re.match(r'^<!--\s*(?:landscape:start|landscape-start)\s*-->$', stripped, re.IGNORECASE):
+            if mode != "long":
+                typ_lines.append("#page(flipped: true)[\n#set align(left + top)")
+                in_landscape_block = True
+            i += 1
+            continue
+
+        if re.match(r'^<!--\s*(?:landscape:end|landscape-end|/landscape)\s*-->$', stripped, re.IGNORECASE):
+            if mode != "long" and in_landscape_block:
+                typ_lines.append("]")
+                in_landscape_block = False
             i += 1
             continue
 
@@ -1469,7 +1647,54 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   #align(center)[#text(font: ("PingFang SC", "Songti SC"), size: 9pt, style: "italic", fill: rgb("#475569"))[{img_caption}]]
   #v(0.4em)
 """
-            typ_lines.append(f"""
+            if next_landscape and mode != "long" and not in_landscape_block:
+                absorbed_header = None
+                if not next_landscape_isolated:
+                    absorbed_header = try_absorb_preceding_header(typ_lines)
+
+                if absorbed_header:
+                    typ_lines.append(f"""
+#page(flipped: true)[
+  #set align(left + top)
+  {absorbed_header}
+  #v(0.3em)
+  #align(center)[
+    #figure(
+      image("{img_path}", width: 100%, height: 110mm, fit: "contain")
+    )
+  ]
+  {caption_block}
+]
+""")
+                else:
+                    typ_lines.append(f"""
+#page(flipped: true)[
+  #set align(center + horizon)
+  #block(width: 100%, breakable: false)[
+    #align(center)[
+      #figure(
+        image("{img_path}", width: 100%, height: 132mm, fit: "contain")
+      )
+    ]
+    {caption_block}
+  ]
+]
+""")
+                next_landscape = False
+                next_landscape_isolated = False
+            elif in_landscape_block and mode != "long":
+                typ_lines.append(f"""
+#block(width: 100%, breakable: false)[
+  #align(center)[
+    #figure(
+      image("{img_path}", width: 100%, height: 115mm, fit: "contain")
+    )
+  ]
+  {caption_block}
+]
+""")
+            else:
+                typ_lines.append(f"""
 #block(width: 100%, breakable: false)[
   #align(center)[
     #figure(
@@ -1561,17 +1786,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 
 
     if in_table:
-        tbl_rendered = parse_markdown_table_to_typst("\n".join(table_buffer))
-        if last_table_caption:
-            typ_lines.append(f"""
-#v(0.2em)
-#align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
-#v(-0.1em)
-{tbl_rendered}
-#v(0.4em)
-""")
-        else:
-            typ_lines.append(f"\n{tbl_rendered}\n")
+        flush_table()
+
+    if in_landscape_block and mode != "long":
+        typ_lines.append("]")
+        in_landscape_block = False
 
     return "\n".join(typ_lines)
 
