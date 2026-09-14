@@ -44,7 +44,9 @@ TYPST_MATH_BUILTINS = {
     "phi", "varphi", "chi", "psi", "omega",
     "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota",
     "Kappa", "Lambda", "Mu", "Nu", "Xi", "Omicron", "Pi", "Rho", "Sigma", "Tau",
-    "Upsilon", "Phi", "Chi", "Psi", "Omega"
+    "Upsilon", "Phi", "Chi", "Psi", "Omega",
+    "underbrace", "overbrace", "underbracket", "overbracket",
+    "forall", "exists", "scripts", "prime", "limits"
 }
 
 def render_diagram_via_kroki(source: str, diagram_type: str, output_dir: str) -> str:
@@ -136,6 +138,11 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     """将常见 LaTeX 数学公式语法精准转换为 Typst 语法"""
     raw = math_content.strip()
 
+    # 处理多行对齐环境 (aligned, align, split) 与换行符 \\ -> \
+    raw = re.sub(r'\\begin\{(?:aligned|align\*?|split)\}', '', raw)
+    raw = re.sub(r'\\end\{(?:aligned|align\*?|split)\}', '', raw)
+    raw = re.sub(r'\\\\', ' \\ \n', raw)
+
     raw = re.sub(r'\\text\{([^}]+)\}', lambda m: f'"{m.group(1).strip()}"', raw)
     raw = re.sub(r'\\mathrm\{([^}]+)\}', lambda m: f'"{m.group(1).strip()}"', raw)
 
@@ -186,10 +193,21 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         (r'\\in(?![a-zA-Z])', 'in'),
         (r'\\notin(?![a-zA-Z])', 'not in'),
         (r'\\subset(?![a-zA-Z])', 'subset'),
+        (r'\\forall(?![a-zA-Z])', 'forall'),
+        (r'\\exists(?![a-zA-Z])', 'exists'),
+        (r'\\not\\longrightarrow(?![a-zA-Z])', 'arrow.r.not'),
+        (r'\\notlongrightarrow(?![a-zA-Z])', 'arrow.r.not'),
+        (r'\\not\\rightarrow(?![a-zA-Z])', 'arrow.r.not'),
+        (r'\\not\\to(?![a-zA-Z])', 'arrow.r.not'),
+        (r'\\longrightarrow(?![a-zA-Z])', 'arrow.r.long'),
+        (r'\\longleftarrow(?![a-zA-Z])', 'arrow.l.long'),
+        (r'\\Longrightarrow(?![a-zA-Z])', 'arrow.r.long.double'),
+        (r'\\Longleftarrow(?![a-zA-Z])', 'arrow.l.long.double'),
         (r'\\to(?![a-zA-Z])', 'arrow.r'),
         (r'\\rightarrow(?![a-zA-Z])', 'arrow.r'),
         (r'\\leftarrow(?![a-zA-Z])', 'arrow.l'),
         (r'\\Rightarrow(?![a-zA-Z])', 'arrow.r.double'),
+        (r'\\Leftarrow(?![a-zA-Z])', 'arrow.l.double'),
         (r'\\sum(?![a-zA-Z])', 'sum'),
         (r'\\prod(?![a-zA-Z])', 'product'),
         (r'\\infty(?![a-zA-Z])', 'infinity'),
@@ -211,6 +229,9 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         (r'\\dots(?![a-zA-Z])', ' ... '),
         (r'\\cdots(?![a-zA-Z])', ' ... '),
         (r'\\ldots(?![a-zA-Z])', ' ... '),
+        (r'\\oplus(?![a-zA-Z])', 'plus.o'),
+        (r'\\otimes(?![a-zA-Z])', 'times.o'),
+        (r'\\odot(?![a-zA-Z])', 'dot.o'),
         (r'\\%', '%'),
     ]
     for pattern, repl in replacements:
@@ -257,6 +278,79 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         return s[:pos] + f"({num}) / ({den})" + parse_frac(s[p2_end+1:])
 
     raw = parse_frac(raw)
+
+    # 递归转换 LaTeX 下大括号/上大括号与脚本标注 \underbrace{A}_{B} / \overbrace{A}^{B} 为 Typst 原生语法
+    def parse_under_over_brace(s: str) -> str:
+        for cmd, typ_func in [
+            (r'\underbrace', 'underbrace'),
+            (r'\overbrace', 'overbrace'),
+            (r'\underbracket', 'underbracket'),
+            (r'\overbracket', 'overbracket')
+        ]:
+            while True:
+                pos = s.find(cmd)
+                if pos == -1:
+                    break
+                p1_start = s.find('{', pos + len(cmd))
+                if p1_start == -1 or s[pos + len(cmd):p1_start].strip() != '':
+                    break
+                depth = 0
+                p1_end = -1
+                for j in range(p1_start, len(s)):
+                    if s[j] == '{': depth += 1
+                    elif s[j] == '}':
+                        depth -= 1
+                        if depth == 0:
+                            p1_end = j
+                            break
+                if p1_end == -1:
+                    break
+                
+                main_content = s[p1_start+1:p1_end]
+                cur_idx = p1_end + 1
+                while cur_idx < len(s) and s[cur_idx].isspace():
+                    cur_idx += 1
+                
+                script_part = ""
+                if cur_idx < len(s) and s[cur_idx] in ('_', '^'):
+                    op = s[cur_idx]
+                    p2_start = s.find('{', cur_idx + 1)
+                    if p2_start != -1 and s[cur_idx + 1:p2_start].strip() == '':
+                        depth = 0
+                        p2_end = -1
+                        for j in range(p2_start, len(s)):
+                            if s[j] == '{': depth += 1
+                            elif s[j] == '}':
+                                depth -= 1
+                                if depth == 0:
+                                    p2_end = j
+                                    break
+                        if p2_end != -1:
+                            sub_content = s[p2_start+1:p2_end]
+                            script_part = f"{op}({sub_content})"
+                            cur_idx = p2_end + 1
+                
+                if script_part:
+                    replacement = f"limits({typ_func}({main_content})){script_part}"
+                else:
+                    replacement = f"{typ_func}({main_content})"
+                s = s[:pos] + replacement + s[cur_idx:]
+        return s
+
+    raw = parse_under_over_brace(raw)
+
+    def parse_xrightarrow(s: str) -> str:
+        pattern = re.compile(r'\\xrightarrow(?:\[([^\]]*)\])?\{([^}]+)\}')
+        def repl(m):
+            sub = m.group(1)
+            sup = m.group(2)
+            if sub:
+                return f"arrow.r.long^({sup})_({sub})"
+            return f"arrow.r.long^({sup})"
+        return pattern.sub(repl, s)
+
+    raw = parse_xrightarrow(raw)
+    raw = re.sub(r'\\prime(?![a-zA-Z])', 'prime', raw)
     raw = re.sub(r'\\bar\{([^}]+)\}', r'macron(\1)', raw)
     raw = re.sub(r'\\vec\{([^}]+)\}', r'arrow(\1)', raw)
 
@@ -292,6 +386,13 @@ def format_inline_markdown(text: str) -> str:
         links.append((l_text, l_url))
         return f"__INLINE_LINK_{len(links)-1}__"
     text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', save_link, text)
+
+    def save_autolink(m):
+        raw_url = m.group(1).strip()
+        links.append((raw_url, raw_url))
+        return f"__INLINE_LINK_{len(links)-1}__"
+    text = re.sub(r'<(https?://[^>\s]+)>', save_autolink, text)
+    text = re.sub(r'<(mailto:[^>\s]+)>', save_autolink, text)
 
     # 2. 支持删除线 ~~strike~~ -> #strike[strike]
     text = re.sub(r'~~(.*?)~~', r'#strike[\1]', text)
@@ -342,8 +443,8 @@ def estimate_text_visual_width(text: str) -> int:
     """估算单元格文本的单行最大视觉排版宽度（中文计2，英文数字计1，消除markdown语法与换行干扰）"""
     clean = re.sub(r'\*\*|__|\*|_|`', '', text)
     clean = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', clean)
-    clean = re.sub(r'<.*?>', ' ', clean)
     lines = re.split(r'<br\s*/?>|\n', clean)
+    lines = [re.sub(r'<.*?>', ' ', l) for l in lines]
     max_w = 0
     for l in lines:
         w = sum(2 if ord(ch) > 127 else 1 for ch in l.strip())
@@ -372,8 +473,10 @@ def calculate_dynamic_col_spec(content_rows: list) -> str:
     # 0.62 次幂非线性平滑：压缩极端落差，保护窄列，舒展长列
     smoothed = [max(s, 2.0) ** 0.62 for s in col_scores]
     min_val = min(smoothed)
-    base_scale = 0.75 / min_val
-    frs = [round(min(max(v * base_scale, 0.6), 3.8), 2) for v in smoothed]
+    # 动态保障窄列不被过度挤压：根据总列数确保基础比例，防止首列或简短代码/字母列发生文本溢出
+    min_target = max(1.1, round(5.5 / num_cols, 2))
+    base_scale = min_target / min_val
+    frs = [round(min(max(v * base_scale, min_target), 3.8), 2) for v in smoothed]
     
     # 全列差异极小时 (< 15%) 平权输出
     if max(frs) - min(frs) < 0.2:
@@ -419,6 +522,9 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
     else:
         stroke_code = f"    stroke: (x, y) => if y == 0 {{ (top: 1.2pt + rgb(\"#0f172a\"), bottom: 0.8pt + rgb(\"#0f172a\")) }} else if y == {num_rows - 1} {{ (bottom: 1.2pt + rgb(\"#0f172a\")) }} else {{ (bottom: 0.5pt + rgb(\"#e2e8f0\")) }},"
 
+    inset_code = "    inset: (x: 5.5pt, y: 5pt)," if num_cols >= 5 else "    inset: (x: 7pt, y: 5pt),"
+    align_code = "    align: (col, row) => if row == 0 { center + horizon } else if col == 0 { center + horizon } else { left + horizon }," if num_cols >= 4 else "    align: (col, row) => if row == 0 { center + horizon } else { left + horizon },"
+
     typ_table = [
         "#align(center)[#block(width: 100%)[",
         "  #show table.cell: set par(justify: false, first-line-indent: (amount: 0em, all: true))",
@@ -426,8 +532,8 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
         f"    columns: {col_spec},",
         "    fill: (col, row) => if row == 0 { rgb(\"#f1f5f9\") } else { none },",
         stroke_code,
-        "    inset: (x: 7pt, y: 5pt),",
-        "    align: (col, row) => if row == 0 { center + horizon } else { left + horizon },",
+        inset_code,
+        align_code,
     ]
 
     for row_idx, row in enumerate(content_rows):
@@ -436,13 +542,13 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
             typ_table.append("    table.header(")
             for col in row:
                 cell_formatted = format_inline_markdown(col)
-                cell_formatted = cell_formatted.replace("<br>", "\n").replace("<br/>", "\n")
+                cell_formatted = cell_formatted.replace("<br>", " \\\n").replace("<br/>", " \\\n")
                 typ_table.append(f"      table.cell[#set par(first-line-indent: (amount: 0em, all: true)); #strong[{cell_formatted}]],")
             typ_table.append("    ),")
         else:
             for col in row:
                 cell_formatted = format_inline_markdown(col)
-                cell_formatted = cell_formatted.replace("<br>", "\n").replace("<br/>", "\n")
+                cell_formatted = cell_formatted.replace("<br>", " \\\n").replace("<br/>", " \\\n")
                 typ_table.append(f"    table.cell[#set par(first-line-indent: (amount: 0em, all: true)); {cell_formatted}],")
 
     typ_table.append("  )")
@@ -1047,8 +1153,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 in_code_block = False
                 code_text = "\n".join(code_buffer)
 
-                # 原生 Typst 语法直通
-                if code_lang.lower() == "typst":
+                # 原生 Typst 语法直通（仅在显式声明 typst-raw 时才直通执行，普通 typst 渲染为代码卡片）
+                if code_lang.lower() in ["typst-raw", "raw-typst"]:
                     typ_lines.append(f"\n{code_text}\n")
                     code_buffer = []
                     i += 1
@@ -1271,9 +1377,15 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                         code_buffer = []
                         continue
 
-                # 原生代码块卡片
+                # 原生代码块卡片（自适应定界符：若代码包含反引号，动态加长定界符防止 Typst 提前闭合）
                 clean_code_lang = code_lang.split('/')[0].split()[0].strip() if code_lang else ""
-                typ_lines.append(f"""```{clean_code_lang}\n{code_text}\n```""")
+                longest_ticks = 0
+                for tick_match in re.finditer(r'`+', code_text):
+                    if len(tick_match.group(0)) > longest_ticks:
+                        longest_ticks = len(tick_match.group(0))
+                num_ticks = max(3, longest_ticks + 1)
+                fence = "`" * num_ticks
+                typ_lines.append(f"""{fence}{clean_code_lang}\n{code_text}\n{fence}""")
                 code_buffer = []
                 i += 1
                 continue
@@ -1283,8 +1395,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             i += 1
             continue
 
-        # 表格前置标题捕获（支持 **表X-X 名称**、*表 X-X 名称*、表 X-X 名称等学术规范形式）
-        table_caption_match = re.match(r'^\s*(?:\*{1,2})?(表\s*\d+[\-\.]\d+.*?)(?:\*{1,2})?\s*$', stripped)
+        # 表格前置标题捕获（支持 **表X 名称**、**表X-X 名称**、*表 X 名称* 等学术规范形式）
+        table_caption_match = re.match(r'^\s*(?:\*{1,2})?(表\s*\d+(?:[\-\.]\d+)?.*?)(?:\*{1,2})?\s*$', stripped)
         if table_caption_match:
             last_table_caption = table_caption_match.group(1).strip()
             i += 1
@@ -1438,7 +1550,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 # 配置各类型的色彩系统
                 c_configs = {
                     "NOTE": ("#0284c7", "#f0f9ff", "ℹ️ 提示说明"),
-                    "TIP": ("#16a34a", "#f0fdf4", "💡 实践技巧"),
+                    "TIP": ("#16a34a", "#f0fdf4", "💡 操作建议"),
                     "IMPORTANT": ("#7c3aed", "#faf5ff", "📌 关键要点"),
                     "WARNING": ("#d97706", "#fffbeb", "⚠️ 注意事项"),
                     "CAUTION": ("#dc2626", "#fef2f2", "🛑 安全告警"),
@@ -1599,7 +1711,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                     tail = clean_lines[i].strip()[:-2]
                     if tail:
                         math_lines.append(tail)
-            math_text = " ".join(math_lines)
+            math_text = "\n".join(math_lines)
             typ_math = convert_latex_math_to_typst(math_text)
             if math_indent >= 2:
                 # 列表项内部的公式块：缩进 2 格输出，归属于当前列表项，避免打断列表
