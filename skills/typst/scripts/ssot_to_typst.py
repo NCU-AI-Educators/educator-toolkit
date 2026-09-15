@@ -138,6 +138,9 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     """将常见 LaTeX 数学公式语法精准转换为 Typst 语法"""
     raw = math_content.strip()
 
+    # 清除 LaTeX 字号修饰宏（如 \Large, \large, \Huge, \small 等，Typst 数学环境中不适用）
+    raw = re.sub(r'\\(?:tiny|scriptsize|footnotesize|small|normalsize|large|Large|LARGE|huge|Huge)\s*', '', raw)
+
     # 处理多行对齐环境 (aligned, align, split) 与换行符 \\ -> \
     raw = re.sub(r'\\begin\{(?:aligned|align\*?|split)\}', '', raw)
     raw = re.sub(r'\\end\{(?:aligned|align\*?|split)\}', '', raw)
@@ -199,6 +202,13 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         (r'\\notlongrightarrow(?![a-zA-Z])', 'arrow.r.not'),
         (r'\\not\\rightarrow(?![a-zA-Z])', 'arrow.r.not'),
         (r'\\not\\to(?![a-zA-Z])', 'arrow.r.not'),
+        (r'\\Longleftrightarrow(?![a-zA-Z])', 'arrow.l.r.double'),
+        (r'\\longleftrightarrow(?![a-zA-Z])', 'arrow.l.r.long'),
+        (r'\\Leftrightarrow(?![a-zA-Z])', 'arrow.l.r.double'),
+        (r'\\leftrightarrow(?![a-zA-Z])', 'arrow.l.r'),
+        (r'\\iff(?![a-zA-Z])', 'arrow.l.r.double'),
+        (r'\\implies(?![a-zA-Z])', 'arrow.r.double'),
+        (r'\\impliedby(?![a-zA-Z])', 'arrow.l.double'),
         (r'\\longrightarrow(?![a-zA-Z])', 'arrow.r.long'),
         (r'\\longleftarrow(?![a-zA-Z])', 'arrow.l.long'),
         (r'\\Longrightarrow(?![a-zA-Z])', 'arrow.r.long.double'),
@@ -1730,16 +1740,26 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             continue
 
         html_img_match = re.search(r'''<img\s+[^>]*src=["\']([^"\']+)["\'][^>]*>''', stripped, re.IGNORECASE)
-        img_match = re.match(r'^\s*!\[(.*?)\]\((.*?)\)\s*$', stripped)
+        img_match = re.match(r'^\s*!\[(.*?)\]\((.*?)\)\s*(?:\{([^}]+)\})?\s*$', stripped)
 
         if img_match or html_img_match:
+            custom_width = "100%"
             if img_match:
                 img_caption = img_match.group(1).strip()
                 img_path = img_match.group(2).strip()
+                props = img_match.group(3) or ""
+                m_w = re.search(r'width[:=]\s*([0-9]+%|[0-9.]+(?:mm|cm|pt|em)?)', props, re.IGNORECASE)
+                if m_w:
+                    w_val = m_w.group(1)
+                    custom_width = w_val if any(w_val.endswith(u) for u in ['%', 'mm', 'cm', 'pt', 'em']) else f"{w_val}%"
             else:
                 img_path = html_img_match.group(1).strip()
                 alt_m = re.search(r'''alt=["\']([^"\']+)["\']''', stripped, re.IGNORECASE)
                 img_caption = alt_m.group(1).strip() if alt_m else ""
+                w_m = re.search(r'''width=["\']?(\d+(?:%|mm|cm|pt|em)?)["\']?''', stripped, re.IGNORECASE)
+                if w_m:
+                    w_val = w_m.group(1)
+                    custom_width = w_val if any(w_val.endswith(u) for u in ['%', 'mm', 'cm', 'pt', 'em']) else f"{w_val}%"
 
             # 智能消费随后的题注行（兼容 <sub><b>图...</b></sub>、*图...*、纯文本题注）
             while i + 1 < len(clean_lines):
@@ -1824,7 +1844,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 #block(width: 100%, breakable: false)[
   #align(center)[
     #figure(
-      image("{img_path}", width: 100%)
+      image("{img_path}", width: {custom_width})
     )
   ]
   {caption_block}
