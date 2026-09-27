@@ -562,9 +562,20 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
         cols = [c.strip() for c in line.split("|")]
         rows.append(cols)
 
+    md_col_align = []
     content_rows = []
     for r in rows:
-        if all(re.match(r'^:?-+:?$', c) for c in r):
+        if all(re.match(r"^:?-+:?$", c.strip()) for c in r if c.strip()):
+            for c in r:
+                c_s = c.strip()
+                if c_s.startswith(":") and c_s.endswith(":"):
+                    md_col_align.append("center")
+                elif c_s.endswith(":"):
+                    md_col_align.append("right")
+                elif c_s.startswith(":"):
+                    md_col_align.append("left")
+                else:
+                    md_col_align.append("auto")
             continue
         content_rows.append(r)
 
@@ -575,6 +586,61 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
     for r in content_rows:
         while len(r) < num_cols:
             r.append("")
+    while len(md_col_align) < num_cols:
+        md_col_align.append("auto")
+
+    # 语义感知与财务规范智能对齐推断
+    col_aligns = []
+    header_aligns = []
+    for c in range(num_cols):
+        h_text = content_rows[0][c].strip()
+        data_cells = [content_rows[r][c].strip() for r in range(1, len(content_rows)) if len(content_rows[r]) > c and content_rows[r][c].strip()]
+        explicit = md_col_align[c]
+        
+        # 1. 优先遵循 Markdown 显式右对齐
+        if explicit == "right":
+            col_aligns.append("right")
+            header_aligns.append("center")
+            continue
+            
+        # 2. 数字/金额/货币列智能识别 (财务规范：一律右对齐以保持小数点垂直对齐)
+        is_pure_num = lambda cell: bool(re.match(r"^[+-]?\s*[\$¥￥]?\s*[\d,]+(?:\.\d+)?%?\s*$", re.sub(r"<.*?>|\*|_|`", "", cell).strip()))
+        num_count = sum(1 for cell in data_cells if is_pure_num(cell))
+        is_mostly_num = len(data_cells) > 0 and (num_count / len(data_cells) >= 0.6)
+        has_currency_kw = any(kw in h_text for kw in ["金额", "资金", "单价", "总价", "支出", "产值"]) and not any(kw in h_text for kw in ["名称", "科目", "类别", "说明", "依据", "渠道"])
+        
+        if (has_currency_kw and any(is_pure_num(cell) for cell in data_cells)) or is_mostly_num:
+            col_aligns.append("right")
+            header_aligns.append("center")
+            continue
+            
+        # 3. 序号、纯编码、起止日期、单字标签等居中识别
+        is_index = any(kw in h_text for kw in ["序号", "编号", "ID", "No", "阶段"])
+        is_date = any(kw in h_text for kw in ["起止时间", "时间", "日期"]) and all(len(re.sub(r"<.*?>|\*|_|`", "", cell)) <= 20 for cell in data_cells)
+        is_short_tag = (len(h_text) <= 5) and all(len(re.sub(r"<.*?>|\*|_|`", "", cell)) <= 6 for cell in data_cells) and not any(kw in h_text for kw in ["名称", "要素", "属性", "科目"])
+        
+        if explicit == "center" or is_index or is_date or is_short_tag:
+            col_aligns.append("center")
+            header_aligns.append("center")
+            continue
+            
+        # 4. 其余文本一律左对齐
+        col_aligns.append("left")
+        header_aligns.append("center")
+
+    # 构建 Typst align 规则表达式
+    h_branches = "".join([f"if col == {c} {{ {header_aligns[c]} + horizon }} else " for c in range(num_cols) if header_aligns[c] != "center"])
+    d_branches = "".join([f"if col == {c} {{ {col_aligns[c]} + horizon }} else " for c in range(num_cols) if col_aligns[c] != "left"])
+    h_code = f"{h_branches}{{ center + horizon }}" if h_branches else "center + horizon"
+    d_code = f"{d_branches}{{ left + horizon }}" if d_branches else "left + horizon"
+
+    align_code = f"""    align: (col, row) => {{
+      if row == 0 {{
+        {h_code}
+      }} else {{
+        {d_code}
+      }}
+    }},"""
 
     # 内容感知自适应列宽分配（取代所有特定列数的硬编码）
     col_spec = calculate_dynamic_col_spec(content_rows)
@@ -586,8 +652,6 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
         stroke_code = f"    stroke: (x, y) => if y == 0 {{ (top: 1.2pt + rgb(\"#0f172a\"), bottom: 0.8pt + rgb(\"#0f172a\")) }} else if y == {num_rows - 1} {{ (bottom: 1.2pt + rgb(\"#0f172a\")) }} else {{ (bottom: 0.5pt + rgb(\"#e2e8f0\")) }},"
 
     inset_code = "    inset: (x: 5.5pt, y: 5pt)," if num_cols >= 5 else "    inset: (x: 7pt, y: 5pt),"
-    align_code = "    align: (col, row) => if row == 0 { center + horizon } else if col == 0 { center + horizon } else { left + horizon }," if num_cols >= 4 else "    align: (col, row) => if row == 0 { center + horizon } else { left + horizon },"
-
     typ_table = [
         "#align(center)[#block(width: 100%)[",
         "  #show table.cell: set par(justify: false, first-line-indent: (amount: 0em, all: true))",
