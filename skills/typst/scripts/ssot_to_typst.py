@@ -430,6 +430,12 @@ def format_inline_markdown(text: str) -> str:
     text = re.sub(r"<i>(.*?)</i>", r"#emph[\1]", text, flags=re.IGNORECASE)
     text = re.sub(r"</?(?:div|span|p|center|sub|sup|font|em|strong|b|i)[^>]*>", "", text, flags=re.IGNORECASE)
 
+    # 4.5 支持 Markdown 脚注引用 [^id] -> #super[#link(<fn-id>)[#text(size: 0.82em, fill: rgb("#0369a1"))[[id]]]]
+    def _fn_ref_repl(m):
+        f_id = m.group(1)
+        return f'#link(<fn-{f_id}>)[#super[#text(size: 0.82em, fill: rgb("#0369a1"))[[{f_id}]]]]'
+    text = re.sub(r'\[\^([a-zA-Z0-9_\-]+)\]', _fn_ref_repl, text)
+
     # 4. 还原行内链接
     for idx, (l_text, l_url) in enumerate(links):
         l_text_clean = re.sub(r'(?<!\\)~', r'\\~', l_text)
@@ -463,36 +469,83 @@ def estimate_text_visual_width(text: str) -> int:
     return max(max_w, 1)
 
 def calculate_dynamic_col_spec(content_rows: list) -> str:
-    """基于表格真实内容密度，动态自适应计算 Typst 出版级列宽比例 (col_spec)"""
+    """语义感知与密度自适应列宽分配算法 (智能混合 auto 与加权 fr)"""
     num_cols = len(content_rows[0])
     if num_cols <= 1:
         return "(1fr,)"
     
-    col_scores = []
+    col_info = []
     for c in range(num_cols):
-        header_w = estimate_text_visual_width(content_rows[0][c])
-        data_widths = [estimate_text_visual_width(r[c]) for r in content_rows[1:] if len(r) > c and r[c].strip()]
-        if not data_widths:
-            score = header_w
+        h_text = content_rows[0][c].strip()
+        h_w = estimate_text_visual_width(h_text)
+        data_cells = [content_rows[r][c].strip() for r in range(1, len(content_rows)) if len(content_rows[r]) > c]
+        
+        # 单元格单行最大视觉宽度（已按 <br> 切分）
+        max_line_w = max([estimate_text_visual_width(cell) for cell in data_cells] + [h_w])
+        # 单元格纯文本总字符数最大值（未切分前）
+        max_raw_len = max([len(re.sub(r"<.*?>|\*|_|`", "", cell)) for cell in data_cells] + [len(h_text)])
+        # 是否包含长叙述段落或标点句号
+        has_paragraph = any(len(re.sub(r"<.*?>|\*|_|`", "", cell)) > 35 or "。" in cell for cell in data_cells)
+        
+        # 明确紧凑型特征：序号、短编号、起止日期、纯金额数字、紧凑标签
+        is_index = any(k in h_text for k in ["序号", "编号", "ID", "No"]) or (max_raw_len <= 4 and max_line_w <= 6)
+        is_date = any(k in h_text for k in ["起止时间", "时间", "日期"]) and max_line_w <= 20
+        is_currency = any(k in h_text for k in ["金额", "资金", "预算"]) and max_line_w <= 14 and not has_paragraph
+        is_short_label = max_line_w <= 24 and max_raw_len <= 32 and not has_paragraph
+        is_compact = is_index or is_date or is_currency or (is_short_label and not has_paragraph)
+        
+        col_info.append({
+            "col": c,
+            "header": h_text,
+            "max_line_w": max_line_w,
+            "max_raw_len": max_raw_len,
+            "has_paragraph": has_paragraph,
+            "is_compact": is_compact
+        })
+    
+    compact_count = sum(1 for ci in col_info if ci["is_compact"])
+    fluid_count = num_cols - compact_count
+    
+    # 策略 1: 仅有 1 列长叙述列，其他均为紧凑列（如表 1、表 4、表 6、表 7）
+    # 紧凑列全部 auto，唯一的长叙述列独享 1fr，彻底杜绝紧凑列留白浪费与叙述列挤压
+    if fluid_count == 1:
+        specs = []
+        for ci in col_info:
+            if ci["is_compact"]:
+                specs.append("auto")
+            else:
+                specs.append("1fr")
+        return f"({', '.join(specs)})"
+    
+    # 策略 2: 存在多个流式列（如表 2、表 3、表 5、表 8）
+    # 对于极紧凑列（如序号、单字影响度）依然采用 auto，其余流式列按真实内容体量非线性分配加权 fr
+    fr_scores = []
+    for ci in col_info:
+        if ci["is_compact"] and ci["max_raw_len"] <= 10:
+            fr_scores.append(None) # auto
         else:
-            avg_w = sum(data_widths) / len(data_widths)
-            max_w = max(data_widths)
-            score = max(header_w * 0.9, avg_w * 0.65 + max_w * 0.35)
-        col_scores.append(score)
+            c = ci["col"]
+            data_widths = [estimate_text_visual_width(content_rows[r][c]) for r in range(1, len(content_rows)) if len(content_rows[r]) > c and content_rows[r][c].strip()]
+            avg_w = sum(data_widths) / len(data_widths) if data_widths else ci["max_line_w"]
+            score = max(ci["max_line_w"] * 0.8, avg_w * 0.6 + ci["max_raw_len"] * 0.4)
+            fr_scores.append(score)
     
-    # 0.62 次幂非线性平滑：压缩极端落差，保护窄列，舒展长列
-    smoothed = [max(s, 2.0) ** 0.62 for s in col_scores]
-    min_val = min(smoothed)
-    # 动态保障窄列不被过度挤压：根据总列数确保基础比例，防止首列或简短代码/字母列发生文本溢出
-    min_target = max(1.1, round(5.5 / num_cols, 2))
-    base_scale = min_target / min_val
-    frs = [round(min(max(v * base_scale, min_target), 3.8), 2) for v in smoothed]
-    
-    # 全列差异极小时 (< 15%) 平权输出
-    if max(frs) - min(frs) < 0.2:
+    active_scores = [s for s in fr_scores if s is not None]
+    if not active_scores:
         return f"({', '.join(['1fr']*num_cols)})"
     
-    return f"({', '.join([f'{f}fr' for f in frs])})"
+    min_score = min(active_scores)
+    smoothed = [((s / min_score) ** 0.55) if s is not None else None for s in fr_scores]
+    
+    specs = []
+    for sm in smoothed:
+        if sm is None:
+            specs.append("auto")
+        else:
+            val = round(max(sm, 1.0), 2)
+            specs.append(f"{val:g}fr")
+            
+    return f"({', '.join(specs)})"
 
 def parse_markdown_table_to_typst(table_text: str) -> str:
     """符合调优标准的科技三线表（带表头双线与无缩进单元格）"""
@@ -619,6 +672,54 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             continue
         clean_lines.append(l)
 
+    # 智能启发式元数据提取：当未提供 Frontmatter 时，尝试从 H1 下方的元数据键值行中自适应提取
+    preamble_meta = {}
+    for l in clean_lines:
+        stripped_l = l.strip()
+        if not stripped_l:
+            continue
+        if stripped_l.startswith("## ") or stripped_l.startswith("# ") or stripped_l == "---":
+            break
+        m_kv = re.match(r'^\*\*([^\*：:]+)\*\*[：:]\s*(.*)', stripped_l)
+        if m_kv:
+            k_name = m_kv.group(1).strip()
+            v_val = m_kv.group(2).strip()
+            preamble_meta[k_name] = v_val
+
+    if preamble_meta:
+        if ('所属中心' in preamble_meta or '中心' in preamble_meta) and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta.get('所属中心') or preamble_meta.get('中心')
+        elif '牵头申报单位' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['牵头申报单位']
+        elif '研发机构' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['研发机构']
+        elif '编制单位' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['编制单位']
+
+        if '联合申报单位' in preamble_meta and not metadata.get('author'):
+            lead = preamble_meta.get('牵头申报单位', '')
+            sub = preamble_meta.get('联合申报单位', '')
+            metadata['author'] = f'{lead} · {sub}' if lead else sub
+        elif '项目负责人' in preamble_meta and not metadata.get('author'):
+            metadata['author'] = preamble_meta['项目负责人']
+        elif '编制团队' in preamble_meta and not metadata.get('author'):
+            metadata['author'] = preamble_meta['编制团队']
+
+        if '申报指南' in preamble_meta and not metadata.get('document_id'):
+            metadata['document_id'] = preamble_meta['申报指南']
+        elif '文档编号' in preamble_meta and not metadata.get('document_id'):
+            metadata['document_id'] = preamble_meta['文档编号']
+        elif '项目编号' in preamble_meta and not metadata.get('document_id'):
+            metadata['document_id'] = preamble_meta['项目编号']
+
+        if '项目类别' in preamble_meta and not metadata.get('classification'):
+            metadata['classification'] = preamble_meta['项目类别']
+        elif '密级' in preamble_meta and not metadata.get('classification'):
+            metadata['classification'] = preamble_meta['密级']
+
+        if '实施周期' in preamble_meta and not metadata.get('date'):
+            metadata['date'] = preamble_meta['实施周期'].split('（')[0].strip()
+
     # --------------------------------------------------------------------------
     # 彻底解耦语义与程序代码：元数据标签支持 Frontmatter 显式定义与体裁自适应体系
     # 优先级 1: Frontmatter 显式自定义标签 (labels 字典 或 label_* 平铺键)
@@ -654,7 +755,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             "document_id": "文档编号",
             "classification": "受控密级",
             "default_author": "系统架构委员会",
-            "default_institution": "南昌大学AI创新应用实验室（AIIA Lab@NCU）",
+            "default_institution": "",
         },
         "report": {
             "author": "报 告 团 队",
@@ -662,8 +763,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             "date": "报 告 日 期",
             "document_id": "报告编号",
             "classification": "受控密级",
-            "default_author": "项目联合工程团队",
-            "default_institution": "南昌大学AI创新应用实验室（AIIA Lab@NCU）",
+            "default_author": "项目申报团队",
+            "default_institution": "",
         },
     }
 
@@ -716,19 +817,26 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     inst_val = metadata.get('institution', '')
     class_val = metadata.get('classification', '')
 
-    if has_doc_id:
+    subtitle_val = metadata.get('subtitle', '')
+    if subtitle_val:
+        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{subtitle_val.replace("@", chr(92) + "@")}]'
+    elif has_doc_id:
         even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{label_doc_id}：#text(fill: rgb("#0369a1"), weight: "bold")[#raw("{doc_id_val}")]]'
     elif matched_genre == "course":
         course_name = metadata.get("course") or ("《人机协同程序设计》" if "人机协同" in metadata.get('title', '') else "通识课程")
         even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[南昌大学 · {course_name}]'
+    elif inst_val:
+        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{inst_val.replace("@", chr(92) + "@")}]'
     else:
-        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{inst_val.replace("@", "\\@")}]'
+        even_header_right = f'text(size: 8.5pt, fill: rgb("#64748b"), font: ("PingFang SC", "Heiti SC"))[{metadata.get("title", "").replace("@", chr(92) + "@")}]'
 
     if has_classification:
-        footer_left = f'#text("{inst_val}") · #text(fill: rgb("#0f172a"), weight: "medium")[{class_val}]'
+        if inst_val:
+            footer_left = f'#text("{inst_val}") · #text(fill: rgb("#0f172a"), weight: "medium")[{class_val}]'
+        else:
+            footer_left = f'#text(fill: rgb("#0f172a"), weight: "medium")[{class_val}]'
     else:
-        footer_left = f'#text("{inst_val}")'
-
+        footer_left = f'#text("{inst_val}")' if inst_val else '#text("")'
     # 智能断行处理编制团队与研发机构
     formatted_author = format_org_cell(metadata['author'])
     formatted_inst = format_org_cell(metadata['institution']).replace("@", '#"@"')
@@ -844,7 +952,9 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   }}
 )
 #show list: set block(above: 0.85em, below: 0.85em)
-#show enum: set block(above: 0.85em, below: 0.85em)""")
+#show enum: set block(above: 0.85em, below: 0.85em)
+
+// 列表首行对齐：第一级统一缩进 2em，子列表由 Typst 原生语法自然对齐""")
 
     typ_lines.append(f"""
 // 图表原生编号样式优化（去除默认额外 supplement）
@@ -883,8 +993,12 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 )
 
 // 标题层级体系规范（用户指定精准间距体系）
-// 简单朴素出版级目录排版系统 (标准学术规约，端正自然)
+// 简单朴素出版级目录排版系统 (标准学术规约，端正自然，一级章目加粗与呼吸感微间距)
 #set outline(indent: 1.5em)
+#show outline.entry.where(level: 1): it => {{
+  v(0.85em)
+  text(weight: "bold", fill: rgb("#0f172a"))[#it]
+}}
 #show heading.where(level: 1): it => block(width: 100%, above: 1.5em, below: 1.25em)[
   #set align(center)
   #set text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 18pt, weight: "bold", fill: rgb("#0f172a"))
@@ -901,10 +1015,13 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   #it.body
 ]
 
-#show heading.where(level: 4): it => block(width: 100%, above: 0.8em, below: 0.6em)[
-  #set text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 10pt, weight: "bold", fill: rgb("#334155"))
+#show heading.where(level: 4): it => block(width: 100%, above: 1.0em, below: 0.6em)[
+  #set text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 10.5pt, weight: "bold", fill: rgb("#0f172a"))
   #it.body
 ]
+
+// 5 级标题专用于具名锚点（如参考文献、词条等），不增加额外间距，完全继承正文排版，且不计入目录大纲
+#show heading.where(level: 5): it => block(spacing: 0.7em)[#it.body]
 
 // 核心大标题与元数据
 #align(center)[
@@ -999,6 +1116,30 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     next_table_landscape = False
     next_table_portrait = False
     in_landscape_block = False
+    ref_buffer = []
+
+    def flush_references():
+        nonlocal ref_buffer
+        if not ref_buffer:
+            return
+        max_len = max(len(id_str) for id_str, _ in ref_buffer)
+        col1_w = f"{max(2.2, 1.2 + max_len * 0.55):.1f}em"
+        grid_cells = []
+        for fn_id, fn_body in ref_buffer:
+            grid_cells.append(f'  [#align(right + top)[#text(weight: "bold", fill: rgb("#0369a1"))[[{fn_id}]] <fn-{fn_id}>]], [{fn_body}],')
+        cells_str = chr(10).join(grid_cells)
+        typ_lines.append(f"""
+#v(0.3em)
+#grid(
+  columns: ({col1_w}, 1fr),
+  column-gutter: 0.6em,
+  row-gutter: 0.75em,
+  align: (right + top, left + top),
+{cells_str}
+)
+#v(0.5em)
+""")
+        ref_buffer = []
 
     def try_absorb_preceding_header(buffer):
         """
@@ -1421,11 +1562,16 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         elif in_table:
             flush_table()
 
-        # 空行
+        # 空行：参考文献收集期间遇空行暂不断开，等待连续收集
         if not stripped:
-            typ_lines.append("")
+            if not ref_buffer:
+                typ_lines.append("")
             i += 1
             continue
+
+        # 若当前非空行不是脚注定义，且 ref_buffer 存在内容，则立即冲刷参考文献网格
+        if ref_buffer and not re.match(r'^\[\^([a-zA-Z0-9_\-]+)\]:\s*(.*)', stripped):
+            flush_references()
 
         # 显式声明分页：Markdown 标准注释与 LaTeX 命令（彻底将分页控制权交还 SSOT 源码）
         if re.match(r'^<!--\s*(?:page\s*break|newpage)\s*-->$', stripped, re.IGNORECASE) or stripped == r"\newpage" or re.match(r'^<div\s+[^>]*page-break-(?:before|after)\s*:\s*always[^>]*>\s*</div>$', stripped, re.IGNORECASE):
@@ -1499,13 +1645,16 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             after_pb = "#pagebreak(weak: true)\n" if break_after else "#v(1.0em)\n"
 
             typ_lines.append(f"""
-{before_pb}#v(1.0em)
+{before_pb}#v(0.8em)
 #align(center)[#text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 16pt, weight: "bold", fill: rgb("#0f172a"), tracking: 0.5em)[目　录]]
-#v(1.2em)
-#outline(
-  title: none,
-  depth: 2,
-)
+#v(1.0em)
+#block[
+  #set par(leading: 0.68em)
+  #outline(
+    title: none,
+    depth: 2,
+  )
+]
 {after_pb}""")
             i += 1
             while i < len(clean_lines):
@@ -1723,7 +1872,10 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                         math_lines.append(tail)
             math_text = "\n".join(math_lines)
             typ_math = convert_latex_math_to_typst(math_text)
-            if math_indent >= 2:
+            if math_indent >= 4:
+                # 深层列表项内部的公式块：缩进 4 格输出，归属于当前二级/三级列表项
+                typ_lines.append(f"    $ {typ_math} $")
+            elif math_indent >= 2:
                 # 列表项内部的公式块：缩进 2 格输出，归属于当前列表项，避免打断列表
                 typ_lines.append(f"  $ {typ_math} $")
             else:
@@ -1858,13 +2010,14 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         indent = len(line) - len(line.lstrip())
 
         # =========================================================================
-        # 1. 第二级列表与从属文本 (indent >= 2)
+        # 1. 第二级与深层嵌套列表与从属文本 (indent >= 2)
         # =========================================================================
         if indent >= 2:
             m_sub_num = re.match(r'^\d+\.\s+', stripped)
             m_sub_bullet = re.match(r'^[\*\-]\s+', stripped)
+            prefix = "    " if indent >= 4 else "  "
             if m_sub_num:
-                # 第二级有序列表：对齐到段落首部，应用出版规范模式 A (1), (2), (3)
+                # 第二级/第三级有序列表：对齐到段落首部，应用出版规范模式 A (1), (2), (3)
                 item_body = stripped[len(m_sub_num.group(0)):].strip()
                 # 检查下一行是否是公式块、代码块或更深缩进的子内容，或者是引出词
                 next_is_child = (i + 1 < len(clean_lines)) and (
@@ -1876,11 +2029,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                     item_body = re.sub(r'[：:]\s*$', '', item_body)
                     item_body = re.sub(r'[：:](\*\*|__)\s*$', r'\1', item_body)
                 formatted_item = format_inline_markdown(item_body)
-                typ_lines.append(f"  + {formatted_item}")
+                typ_lines.append(f"{prefix}+ {formatted_item}")
                 i += 1
                 continue
             elif m_sub_bullet:
-                # 第二级无序列表：对齐到段落首部
+                # 第二级/第三级无序列表：对齐到段落首部
                 item_body = re.sub(r'^[\*\-]\s+', '', stripped)
                 next_is_child = (i + 1 < len(clean_lines)) and (
                     clean_lines[i+1].strip().startswith("$$") or 
@@ -1891,18 +2044,13 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                     item_body = re.sub(r'[：:]\s*$', '', item_body)
                     item_body = re.sub(r'[：:](\*\*|__)\s*$', r'\1', item_body)
                 formatted_item = format_inline_markdown(item_body)
-                typ_lines.append(f"  - {formatted_item}")
+                typ_lines.append(f"{prefix}- {formatted_item}")
                 i += 1
                 continue
             else:
-                # 从属正文段落
+                # 列表项内部从属延续段落：缩进挂靠在父列表项内部，首行与列表文本对齐，严禁破除列表上下文
                 p_formatted = format_inline_markdown(stripped)
-                if indent > 2:
-                    # 缩进深度大于列表项的文本：属于列表项内部的从属延续段落，首行不缩进，与列表文本垂直齐平对齐
-                    typ_lines.append(f"  #par(first-line-indent: 0em)[{p_formatted}]")
-                else:
-                    # 普通从属正文段落（如成因分析说明或引导语）：作为标准段落渲染
-                    typ_lines.append(p_formatted)
+                typ_lines.append(f"{prefix}#par(first-line-indent: 0em)[{p_formatted}]")
                 i += 1
                 continue
 
@@ -1910,16 +2058,33 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         # 2. 第一级列表 (indent < 2)：原生流式排版，保留粗体行内语义，严禁强加换行
         # =========================================================================
         is_unordered = re.match(r'^[\*\-]\s+', stripped)
-        is_ordered = re.match(r'^\d+\.\s+', stripped)
-        if is_unordered or is_ordered:
-            body = re.sub(r'^([\*\-]|\d+\.)\s+', '', stripped)
-            formatted_body = format_inline_markdown(body)
-            if typ_lines and typ_lines[-1] != "" and not typ_lines[-1].startswith("- ") and not typ_lines[-1].startswith("+ "):
-                typ_lines.append("")
+        m_ordered = re.match(r'^(\d+)\.\s+(.*)', stripped)
+        if is_unordered or m_ordered:
             if is_unordered:
+                body = re.sub(r'^[\*\-]\s+', '', stripped)
+                formatted_body = format_inline_markdown(body)
+                if typ_lines and typ_lines[-1] != "" and not typ_lines[-1].startswith("- ") and not re.match(r'^\d+\.\s+', typ_lines[-1]):
+                    typ_lines.append("")
                 typ_lines.append(f"- {formatted_body}")
             else:
-                typ_lines.append(f"+ {formatted_body}")
+                num = m_ordered.group(1)
+                body = m_ordered.group(2).strip()
+                formatted_body = format_inline_markdown(body)
+                if typ_lines and typ_lines[-1] != "" and not typ_lines[-1].startswith("- ") and not re.match(r'^\d+\.\s+', typ_lines[-1]):
+                    typ_lines.append("")
+                typ_lines.append(f"{num}. {formatted_body}")
+            i += 1
+            continue
+
+        # =========================================================================
+        # 3.5 Markdown 脚注/参考文献定义行: [^id]: content（缓冲并生成两列对齐学术网格）
+        # =========================================================================
+        m_fn_def = re.match(r'^\[\^([a-zA-Z0-9_\-]+)\]:\s*(.*)', stripped)
+        if m_fn_def:
+            fn_id = m_fn_def.group(1)
+            fn_body = m_fn_def.group(2).strip()
+            fn_body_formatted = format_inline_markdown(fn_body)
+            ref_buffer.append((fn_id, fn_body_formatted))
             i += 1
             continue
 
@@ -1927,12 +2092,28 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         # 4. 普通正文段落
         # =========================================================================
         p_formatted = format_inline_markdown(stripped)
+        # 支持 Markdown 规范的行尾双空格硬换行，以及连续 **键**：值 格式行的换行保护，防止塌陷为一个长段落
+        raw_line = clean_lines[i]
+        line_no_nl = raw_line[:-1] if raw_line.endswith(chr(10)) else raw_line
+        if line_no_nl.endswith(chr(13)): line_no_nl = line_no_nl[:-1]
+        has_hard_break = line_no_nl.endswith("  ") or line_no_nl.endswith(chr(92))
+        is_kv_line = bool(re.match(r'^\*\*([^\*：:]+)\*\*[：:]\s*(.*)', stripped))
+        next_is_kv = False
+        if i + 1 < len(clean_lines):
+            next_is_kv = bool(re.match(r'^\*\*([^\*：:]+)\*\*[：:]\s*(.*)', clean_lines[i+1].strip()))
+        
+        if (has_hard_break or (is_kv_line and next_is_kv)) and not p_formatted.endswith(chr(92)):
+            p_formatted += " " + chr(92)
+
         typ_lines.append(p_formatted)
         i += 1
 
 
     if in_table:
         flush_table()
+
+    if ref_buffer:
+        flush_references()
 
     if in_landscape_block and mode != "long":
         typ_lines.append("]")
