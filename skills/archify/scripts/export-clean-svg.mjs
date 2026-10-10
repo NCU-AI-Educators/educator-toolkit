@@ -768,6 +768,15 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
           var vbHeight = Math.ceil((maxY - minY) + padY * 2);
 
           clone.setAttribute('viewBox', [vbMinX, vbMinY, vbWidth, vbHeight].join(' '));
+
+          // 注入实心纯白背景矩形，杜绝导出 SVG 背景透明导致的暗色主题不可读问题
+          var solidBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          solidBg.setAttribute('x', vbMinX);
+          solidBg.setAttribute('y', vbMinY);
+          solidBg.setAttribute('width', vbWidth);
+          solidBg.setAttribute('height', vbHeight);
+          solidBg.setAttribute('fill', '#ffffff');
+          clone.insertBefore(solidBg, clone.firstChild);
         }
       } catch (e) {
         console.warn('Tight viewBox calculation fallback:', e);

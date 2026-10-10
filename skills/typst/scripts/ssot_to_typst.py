@@ -35,7 +35,7 @@ TYPST_MATH_BUILTINS = {
     "sum", "prod", "product", "integral", "dif", "partial", "round", "floor", "ceil",
     "bold", "italic", "upright", "underline", "overline", "cal", "bb", "frak", "mono",
     "hat", "tilde", "dot", "ddot", "arrow", "vec", "macron", "top", "accent",
-    "in", "notin", "subset", "supset", "approx", "equiv", "propto", "quad",
+    "in", "notin", "subset", "supset", "approx", "equiv", "propto", "quad", "succ", "prec",
     "and", "or", "not", "times", "plus", "minus", "div", "star",
     "NN", "ZZ", "QQ", "RR", "CC", "infinity",
     "alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "eta",
@@ -190,6 +190,12 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         (r'\\neq(?![a-zA-Z])', '!='),
         (r'\\approx(?![a-zA-Z])', 'approx'),
         (r'\\equiv(?![a-zA-Z])', 'equiv'),
+        (r'\\succ(?![a-zA-Z])', 'succ'),
+        (r'\\prec(?![a-zA-Z])', 'prec'),
+        (r'\\lceil', 'ceil('),
+        (r'\\rceil', ')'),
+        (r'\\lfloor', 'floor('),
+        (r'\\rfloor', ')'),
         (r'\\times(?![a-zA-Z])', 'times'),
         (r'\\cdot(?![a-zA-Z])', 'dot'),
         (r'\\pm(?![a-zA-Z])', 'plus.minus'),
@@ -388,6 +394,15 @@ def format_inline_markdown(text: str) -> str:
         return f"__INLINE_MATH_{len(maths)-1}__"
     text = re.sub(r'\$([^\$]+)\$', save_math, text)
 
+    # 0.5 保护行内图片 ![alt](url) -> 转换为 Typst #image(...)
+    inline_images = []
+    def save_img(m):
+        alt = m.group(1).strip()
+        url = m.group(2).strip()
+        inline_images.append((alt, url))
+        return f"__INLINE_IMG_{len(inline_images)-1}__"
+    text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', save_img, text)
+
     # 1. 保护行内链接（防止 URL 中的 ~ 或特殊字符被二次转义）
     links = []
     def save_link(m):
@@ -450,6 +465,10 @@ def format_inline_markdown(text: str) -> str:
 
     for idx, code_str in enumerate(codes):
         text = text.replace(f"__INLINE_CODE_{idx}__", f'`{code_str}`')
+
+    for idx, (alt, url) in enumerate(inline_images):
+        img_expr = f'#box(width: 100%, inset: (top: 3pt, bottom: 3pt))[#image("{url}", width: 100%)]'
+        text = text.replace(f"__INLINE_IMG_{idx}__", img_expr)
 
     # 修复加粗超链接嵌套导致的 Typst 语法回退: #strong#link(...) -> #link(...)[#strong[...]]
     text = re.sub(r'#strong#link\((.*?)\)\[\[(.*?)\]\]', r'#link(\1)[#strong[\2]]', text)
@@ -547,8 +566,8 @@ def calculate_dynamic_col_spec(content_rows: list) -> str:
             
     return f"({', '.join(specs)})"
 
-def parse_markdown_table_to_typst(table_text: str) -> str:
-    """符合调优标准的科技三线表（带表头双线与无缩进单元格）"""
+def parse_markdown_table_to_typst(table_text: str, caption: str = None, breakable: bool = None, compact: bool = False) -> str:
+    """符合调优标准的科技三线表（带表头双线、无缩进单元格，标题整合于 table.header 彻底杜绝标题分离与伪分页）"""
     lines = [l.strip() for l in table_text.strip().split("\n") if l.strip()]
     if len(lines) < 2:
         return ""
@@ -634,7 +653,18 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
     h_code = f"{h_branches}{{ center + horizon }}" if h_branches else "center + horizon"
     d_code = f"{d_branches}{{ left + horizon }}" if d_branches else "left + horizon"
 
-    align_code = f"""    align: (col, row) => {{
+    if caption:
+        align_code = f"""    align: (col, row) => {{
+      if row == 0 {{
+        center + horizon
+      }} else if row == 1 {{
+        {h_code}
+      }} else {{
+        {d_code}
+      }}
+    }},"""
+    else:
+        align_code = f"""    align: (col, row) => {{
       if row == 0 {{
         {h_code}
       }} else {{
@@ -642,41 +672,62 @@ def parse_markdown_table_to_typst(table_text: str) -> str:
       }}
     }},"""
 
-    # 内容感知自适应列宽分配（取代所有特定列数的硬编码）
+    # 内容感知自适应列宽分配
     col_spec = calculate_dynamic_col_spec(content_rows)
-
     num_rows = len(content_rows)
-    if num_rows == 1:
-        stroke_code = "    stroke: (x, y) => if y == 0 { (top: 1.2pt + rgb(\"#0f172a\"), bottom: 1.2pt + rgb(\"#0f172a\")) },"
-    else:
-        stroke_code = f"    stroke: (x, y) => if y == 0 {{ (top: 1.2pt + rgb(\"#0f172a\"), bottom: 0.8pt + rgb(\"#0f172a\")) }} else if y == {num_rows - 1} {{ (bottom: 1.2pt + rgb(\"#0f172a\")) }} else {{ (bottom: 0.5pt + rgb(\"#e2e8f0\")) }},"
 
-    inset_code = "    inset: (x: 5.5pt, y: 5pt)," if num_cols >= 5 else "    inset: (x: 7pt, y: 5pt),"
+    if caption:
+        stroke_code = f"    stroke: (x, y) => if y == 0 {{ none }} else if y == 1 {{ (top: 1.2pt + rgb(\"#0f172a\"), bottom: 0.8pt + rgb(\"#0f172a\")) }} else if y == {num_rows} {{ (bottom: 1.2pt + rgb(\"#0f172a\")) }} else {{ (bottom: 0.5pt + rgb(\"#e2e8f0\")) }},"
+        fill_code = "    fill: (col, row) => if row == 1 { rgb(\"#f1f5f9\") } else { none },"
+    else:
+        if num_rows == 1:
+            stroke_code = "    stroke: (x, y) => if y == 0 { (top: 1.2pt + rgb(\"#0f172a\"), bottom: 1.2pt + rgb(\"#0f172a\")) },"
+        else:
+            stroke_code = f"    stroke: (x, y) => if y == 0 {{ (top: 1.2pt + rgb(\"#0f172a\"), bottom: 0.8pt + rgb(\"#0f172a\")) }} else if y == {num_rows - 1} {{ (bottom: 1.2pt + rgb(\"#0f172a\")) }} else {{ (bottom: 0.5pt + rgb(\"#e2e8f0\")) }},"
+        fill_code = "    fill: (col, row) => if row == 0 { rgb(\"#f1f5f9\") } else { none },"
+    if compact:
+        inset_code = "    inset: (x: 5.5pt, y: 3.2pt),"
+    else:
+        inset_code = "    inset: (x: 5.5pt, y: 5pt)," if num_cols >= 5 else "    inset: (x: 7pt, y: 5pt),"
+    if breakable is not None:
+        breakable_val = "true" if breakable else "false"
+    else:
+        breakable_val = "true"
     typ_table = [
-        "#align(center)[#block(width: 100%)[",
+        f"#align(center)[#block(width: 100%, breakable: {breakable_val})[",
         "  #show table.cell: set par(justify: false, first-line-indent: (amount: 0em, all: true))",
+    ]
+    if compact:
+        typ_table.append("  #show table.cell: set text(size: 9.2pt)")
+    typ_table.extend([
         f"  #table(",
         f"    columns: {col_spec},",
-        "    fill: (col, row) => if row == 0 { rgb(\"#f1f5f9\") } else { none },",
+        fill_code,
         stroke_code,
         inset_code,
         align_code,
-    ]
+        "    table.header(",
+    ])
 
-    for row_idx, row in enumerate(content_rows):
+    if caption:
+        typ_table.append(f"""      table.cell(colspan: {num_cols}, stroke: none)[
+        #v(0.2em)
+        #align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{caption}]]
+        #v(0.1em)
+      ],""")
+
+    for col in content_rows[0]:
+        cell_formatted = format_inline_markdown(col)
+        cell_formatted = cell_formatted.replace("<br>", " \\\n").replace("<br/>", " \\\n")
+        typ_table.append(f"      table.cell[#set par(first-line-indent: (amount: 0em, all: true)); #strong[{cell_formatted}]],")
+    typ_table.append("    ),")
+
+    for row_idx, row in enumerate(content_rows[1:], start=1):
         typ_table.append(f"    // Row {row_idx}")
-        if row_idx == 0:
-            typ_table.append("    table.header(")
-            for col in row:
-                cell_formatted = format_inline_markdown(col)
-                cell_formatted = cell_formatted.replace("<br>", " \\\n").replace("<br/>", " \\\n")
-                typ_table.append(f"      table.cell[#set par(first-line-indent: (amount: 0em, all: true)); #strong[{cell_formatted}]],")
-            typ_table.append("    ),")
-        else:
-            for col in row:
-                cell_formatted = format_inline_markdown(col)
-                cell_formatted = cell_formatted.replace("<br>", " \\\n").replace("<br/>", " \\\n")
-                typ_table.append(f"    table.cell[#set par(first-line-indent: (amount: 0em, all: true)); {cell_formatted}],")
+        for col in row:
+            cell_formatted = format_inline_markdown(col)
+            cell_formatted = cell_formatted.replace("<br>", " \\\n").replace("<br/>", " \\\n")
+            typ_table.append(f"    table.cell[#set par(first-line-indent: (amount: 0em, all: true)); {cell_formatted}],")
 
     typ_table.append("  )")
     typ_table.append("]]")
@@ -724,6 +775,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     body_lines = body.split("\n")
     clean_lines = []
     has_removed_h1 = False
+    has_removed_subtitle = False
     in_cb = False
     for l in body_lines:
         if l.strip().startswith("```"):
@@ -734,6 +786,12 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             if extracted_title and (not has_frontmatter or metadata.get('title') in ('', '技术工程设计基准')):
                 metadata['title'] = extracted_title
             continue
+        if not in_cb and has_removed_h1 and not has_removed_subtitle and l.strip().startswith("## "):
+            has_removed_subtitle = True
+            extracted_sub = l.strip()[3:].strip()
+            if extracted_sub and not metadata.get('subtitle'):
+                metadata['subtitle'] = extracted_sub
+            continue
         clean_lines.append(l)
 
     # 智能启发式元数据提取：当未提供 Frontmatter 时，尝试从 H1 下方的元数据键值行中自适应提取
@@ -742,9 +800,15 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         stripped_l = l.strip()
         if not stripped_l:
             continue
-        if stripped_l.startswith("## ") or stripped_l.startswith("# ") or stripped_l == "---":
+        if stripped_l.startswith("## "):
+            if not metadata.get('subtitle'):
+                metadata['subtitle'] = stripped_l[3:].strip()
+            continue
+        if stripped_l.startswith("# ") or stripped_l == "---":
             break
-        m_kv = re.match(r'^\*\*([^\*：:]+)\*\*[：:]\s*(.*)', stripped_l)
+        if stripped_l.startswith(">"):
+            stripped_l = stripped_l[1:].strip()
+        m_kv = re.match(r'^(?:[-*•]\s*)?\*\*([^\*：:]+)\*\*[：:]\s*(.*)', stripped_l)
         if m_kv:
             k_name = m_kv.group(1).strip()
             v_val = m_kv.group(2).strip()
@@ -759,6 +823,23 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             metadata['institution'] = preamble_meta['研发机构']
         elif '编制单位' in preamble_meta and not metadata.get('institution'):
             metadata['institution'] = preamble_meta['编制单位']
+        elif '方案起草' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['方案起草']
+        elif '起草单位' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['起草单位']
+        elif '指导机构' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['指导机构']
+        elif '评阅机构' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['评阅机构']
+        elif '研制机构' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['研制机构']
+        elif '机构' in preamble_meta and not metadata.get('institution'):
+            metadata['institution'] = preamble_meta['机构']
+
+        if '编制日期' in preamble_meta:
+            metadata['date'] = preamble_meta['编制日期']
+        elif '日期' in preamble_meta:
+            metadata['date'] = preamble_meta['日期']
 
         if '联合申报单位' in preamble_meta and not metadata.get('author'):
             lead = preamble_meta.get('牵头申报单位', '')
@@ -768,6 +849,10 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             metadata['author'] = preamble_meta['项目负责人']
         elif '编制团队' in preamble_meta and not metadata.get('author'):
             metadata['author'] = preamble_meta['编制团队']
+        elif '评阅人' in preamble_meta and not metadata.get('author'):
+            metadata['author'] = preamble_meta['评阅人']
+        elif '指导人' in preamble_meta and not metadata.get('author'):
+            metadata['author'] = preamble_meta['指导人']
 
         if '申报指南' in preamble_meta and not metadata.get('document_id'):
             metadata['document_id'] = preamble_meta['申报指南']
@@ -872,6 +957,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         metadata['author'] = preset["default_author"]
     if not metadata.get('institution'):
         metadata['institution'] = preset["default_institution"]
+    if not metadata.get('institution') and ('AIIA_Lab' in os.path.abspath(md_path) or 'AIIA_Lab' in os.getcwd()):
+        metadata['institution'] = '南昌大学AI创新应用实验室（AIIA Lab@NCU）' 
 
     has_doc_id = bool(raw_frontmatter.get("document_id"))
     has_classification = bool(raw_frontmatter.get("classification"))
@@ -1179,6 +1266,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     next_landscape_isolated = False
     next_table_landscape = False
     next_table_portrait = False
+    next_table_breakable = None
+    next_table_compact = False
     in_landscape_block = False
     ref_buffer = []
 
@@ -1269,17 +1358,19 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 
     def flush_table():
         nonlocal in_table, table_buffer, last_table_caption
-        nonlocal next_table_landscape, next_table_portrait, next_landscape, next_landscape_isolated
+        nonlocal next_table_landscape, next_table_portrait, next_landscape, next_landscape_isolated, next_table_breakable, next_table_compact
         if not in_table or not table_buffer:
             in_table = False
             table_buffer = []
             return
 
         table_str = "\n".join(table_buffer)
-        tbl_rendered = parse_markdown_table_to_typst(table_str)
+        tbl_rendered = parse_markdown_table_to_typst(table_str, caption=last_table_caption, breakable=next_table_breakable, compact=next_table_compact)
         if not tbl_rendered:
             in_table = False
             table_buffer = []
+            next_table_breakable = None
+            next_table_compact = False
             return
 
         # 计算表格真实最大列数
@@ -1301,11 +1392,6 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             if not next_landscape_isolated:
                 absorbed_header = try_absorb_preceding_header(typ_lines)
 
-            caption_block = ""
-            if last_table_caption:
-                caption_block = f"  #align(center)[#text(font: (\"PingFang SC\", \"Songti SC\", \"SimSun\"), size: 9pt, style: \"italic\", fill: rgb(\"#475569\"))[{last_table_caption}]]\n  #v(-0.1em)\n"
-                last_table_caption = None
-
             header_block = ""
             if absorbed_header:
                 header_block = f"  {absorbed_header}\n  #v(0.4em)\n"
@@ -1313,28 +1399,23 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             typ_lines.append(f"""
 #page(flipped: true)[
   #set align(left + top)
-{header_block}{caption_block}  {tbl_rendered}
+{header_block}  {tbl_rendered}
 ]
 """)
             next_table_landscape = False
             next_table_portrait = False
             next_landscape = False
             next_landscape_isolated = False
+            next_table_breakable = None
+            next_table_compact = False
         else:
-            if last_table_caption:
-                # 表格与表头原生支持跨页流动，由 Typst 原生 table.header 自动在每页顶端复现表头
-                typ_lines.append(f"""
-#v(0.2em)
-#align(center)[#text(font: ("PingFang SC", "Songti SC", "SimSun"), size: 9pt, style: "italic", fill: rgb("#475569"))[{last_table_caption}]]
-#v(-0.1em)
-{tbl_rendered}
-#v(0.4em)
-""")
-                last_table_caption = None
-            else:
-                typ_lines.append(f"\n{tbl_rendered}\n")
+            typ_lines.append(f"\n{tbl_rendered}\n#v(0.4em)\n")
             next_table_landscape = False
             next_table_portrait = False
+            next_table_breakable = None
+            next_table_compact = False
+
+        last_table_caption = None
 
         table_buffer = []
         in_table = False
@@ -1624,9 +1705,14 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         if ref_buffer and not re.match(r'^\[\^([a-zA-Z0-9_\-]+)\]:\s*(.*)', stripped):
             flush_references()
 
-        # 显式声明分页：Markdown 标准注释与 LaTeX 命令（彻底将分页控制权交还 SSOT 源码）
-        if re.match(r'^<!--\s*(?:page\s*break|newpage)\s*-->$', stripped, re.IGNORECASE) or stripped == r"\newpage" or re.match(r'^<div\s+[^>]*page-break-(?:before|after)\s*:\s*always[^>]*>\s*</div>$', stripped, re.IGNORECASE):
-            typ_lines.append("#pagebreak(weak: true)")
+        # 显式强制分页标记：<!-- force-pagebreak --> 或 <!-- pagebreak:force -->
+        if re.match(r'^<!--\s*(?:force-pagebreak|pagebreak:force|pagebreak:exact)\s*-->$', stripped, re.IGNORECASE):
+            typ_lines.append("\n#pagebreak()\n")
+            i += 1
+            continue
+
+        # 用户明确要求：普通通用分页符不要渲染，无论出现在什么位置
+        if re.match(r'^<!--\s*(?:page\s*break|newpage)\s*-->$', stripped, re.IGNORECASE) or stripped in (r"\newpage", r"\pagebreak") or re.match(r'^<div\s+[^>]*(?:page-break-(?:before|after)|break-(?:before|after))\s*:\s*(?:always|page)[^>]*>\s*</div>$', stripped, re.IGNORECASE):
             i += 1
             continue
 
@@ -1640,6 +1726,26 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                     next_landscape_isolated = True
             else:
                 next_table_portrait = True
+            i += 1
+            continue
+
+        # 表格专属跨页控制标记：<!-- table:breakable --> 或 <!-- table:unbreakable --> 或 <!-- breakable: true/false -->
+        m_tbl_brk = re.match(r'^<!--\s*(?:table\s*:\s*)?(breakable|unbreakable)(?:\s*:\s*(true|false))?\s*-->$', stripped, re.IGNORECASE)
+        if m_tbl_brk:
+            kind = m_tbl_brk.group(1).lower()
+            val = m_tbl_brk.group(2)
+            if kind == "breakable":
+                next_table_breakable = True if val is None or val.lower() == "true" else False
+            else:
+                next_table_breakable = False if val is None or val.lower() == "true" else True
+            i += 1
+            continue
+
+        # 表格紧凑模式标记：<!-- table:compact --> 或 <!-- table: compact -->
+        m_tbl_compact = re.match(r'^<!--\s*(?:table\s*:\s*)?(compact|dense)(?:\s*:\s*(true|false))?\s*-->$', stripped, re.IGNORECASE)
+        if m_tbl_compact:
+            val = m_tbl_compact.group(2)
+            next_table_compact = True if val is None or val.lower() == "true" else False
             i += 1
             continue
 
@@ -1674,7 +1780,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             while next_idx < len(clean_lines) and not clean_lines[next_idx].strip():
                 next_idx += 1
             if next_idx < len(clean_lines) and clean_lines[next_idx].strip().startswith("#"):
-                typ_lines.append("\n#v(0.15em)#line(length: 100%, stroke: 0.5pt + rgb(\"#e2e8f0\"))#v(0.1em)\n")
+                # 紧邻标题的分割线不画横线，避免产生类似分页符的横道干扰排版
+                typ_lines.append("\n#v(0.2em)\n")
             else:
                 typ_lines.append("\n#v(0.5em)#line(length: 100%, stroke: 0.5pt + rgb(\"#e2e8f0\"))#v(0.5em)\n")
             i += 1
@@ -1684,16 +1791,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         if stripped.startswith("## ") and any(stripped[3:].strip() == k for k in ["目录", "目 录", "Table of Contents", "TOC"]):
             section_list_counter = 0
             # 目录前是否分页完全由 Markdown 源码显式 <!-- pagebreak --> 或 Frontmatter 配置决定，绝不在编译器中硬编码换页
-            toc_conf = metadata.get("toc", {})
-            if isinstance(toc_conf, dict):
-                break_before = toc_conf.get("break_before", False)
-                break_after = toc_conf.get("break_after", mode == "book")
-            else:
-                break_before = metadata.get("toc_break_before", False)
-                break_after = metadata.get("toc_break_after", mode == "book")
-
-            before_pb = "#pagebreak(weak: true)\n" if break_before else ""
-            after_pb = "#pagebreak(weak: true)\n" if break_after else "#v(1.0em)\n"
+            before_pb = ""
+            after_pb = "#v(1.0em)\n"
 
             typ_lines.append(f"""
 {before_pb}#v(0.8em)
@@ -1736,7 +1835,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 anchor_label = f" <sec-{sec_no}>"
 
             if "参考文献" in title_text or "References" in title_text:
-                typ_lines.append(f"#pagebreak(weak: true)\n= {formatted_title}{anchor_label}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
+                typ_lines.append(f"= {formatted_title}{anchor_label}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
             else:
                 typ_lines.append(f"= {formatted_title}{anchor_label}")
             i += 1
@@ -1877,7 +1976,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             sub_title = stripped[4:].strip()
             formatted_sub = format_inline_markdown(sub_title)
             if "参考文献" in sub_title or "References" in sub_title:
-                typ_lines.append(f"#pagebreak(weak: true)\n== {formatted_sub}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
+                typ_lines.append(f"== {formatted_sub}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
             else:
                 typ_lines.append(f"== {formatted_sub}")
             i += 1
@@ -1892,6 +1991,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         elif stripped.startswith("##### "):
             section_list_counter = 0
             typ_lines.append(f"==== {format_inline_markdown(stripped[6:].strip())}")
+            i += 1
+            continue
+        elif stripped.startswith("###### "):
+            section_list_counter = 0
+            typ_lines.append(f"#block(above: 0.9em, below: 0.6em, sticky: true)[#set par(first-line-indent: (amount: 0em, all: true)); #text(font: (\"Times New Roman\", \"PingFang SC\", \"Heiti SC\", \"STHeiti\", \"SimHei\"), weight: \"bold\", size: 10.5pt, fill: rgb(\"#0f172a\"))[{format_inline_markdown(stripped[7:].strip())}]]")
             i += 1
             continue
 
