@@ -2,7 +2,7 @@
 
 欢迎来到 **Educator Toolkit Skills**！这里汇集了专为 AI Coding Agent（如 Google Antigravity、Claude Code、Cursor、Codex 等）定制的专业级自动化技能包。
 
-通过引入标准化的 Agent 技能，AI 助手不再只是通用的文本生成器，而是具备**符合教育学规范、出版级排版精度和工程制图水准**的专业助教。
+通过引入标准化的 Agent 技能，AI 助手不再只是通用的文本生成器，而是具备 **符合教育学规范、出版级排版精度和工程制图水准** 的专业助教。
 
 ---
 
