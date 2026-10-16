@@ -434,9 +434,6 @@ def format_inline_markdown(text: str) -> str:
     text = re.sub(r'\*\*(.*?)\*\*', r'#strong[\1]', text)
     text = re.sub(r'\*(.*?)\*', r'#emph[\1]', text)
 
-    for idx, math_typ in enumerate(maths):
-        text = text.replace(f"__INLINE_MATH_{idx}__", f"${math_typ}$")
-
     # 清洗并转换 HTML 标签，防止 Typst 误识别为 <label>
     text = re.sub(r"<br\s*/?>", r" \\ ", text, flags=re.IGNORECASE)
     text = re.sub(r"<sub>(.*?)</sub>", r"#sub[\1]", text, flags=re.IGNORECASE)
@@ -444,6 +441,14 @@ def format_inline_markdown(text: str) -> str:
     text = re.sub(r"<b>(.*?)</b>", r"#strong[\1]", text, flags=re.IGNORECASE)
     text = re.sub(r"<i>(.*?)</i>", r"#emph[\1]", text, flags=re.IGNORECASE)
     text = re.sub(r"</?(?:div|span|p|center|sub|sup|font|em|strong|b|i)[^>]*>", "", text, flags=re.IGNORECASE)
+
+    # 转义孤立的角括号与 HTML 实体，杜绝 Typst 将其误识别为未闭合标签（如 <8h、<10）
+    text = text.replace("&lt;", "\\<").replace("&gt;", ">")
+    text = re.sub(r"(?<!\\)<", r"\\<", text)
+
+    # 恢复行内数学公式（确保公式内的 < 和数学符号不受文本级转义影响）
+    for idx, math_typ in enumerate(maths):
+        text = text.replace(f"__INLINE_MATH_{idx}__", f"${math_typ}$")
 
     # 4.5 支持 Markdown 脚注引用 [^id] -> #super[#link(<fn-id>)[#text(size: 0.82em, fill: rgb("#0369a1"))[[id]]]]
     def _fn_ref_repl(m):
@@ -601,10 +606,18 @@ def parse_markdown_table_to_typst(table_text: str, caption: str = None, breakabl
     if not content_rows:
         return ""
 
-    num_cols = max(len(r) for r in content_rows)
+    def _get_cell_span(cell_str: str):
+        m = re.match(r'^(?:<td\s+colspan=["\']?(\d+)["\']?>|colspan=(\d+):?)\s*(.*?)(?:</td>)?$', cell_str.strip(), re.I | re.S)
+        if m:
+            return int(m.group(1) or m.group(2)), m.group(3).strip()
+        return 1, cell_str.strip()
+
+    num_cols = max(sum(_get_cell_span(c)[0] for c in r) for r in content_rows)
     for r in content_rows:
-        while len(r) < num_cols:
+        cur_span = sum(_get_cell_span(c)[0] for c in r)
+        while cur_span < num_cols:
             r.append("")
+            cur_span += 1
     while len(md_col_align) < num_cols:
         md_col_align.append("auto")
 
@@ -725,9 +738,13 @@ def parse_markdown_table_to_typst(table_text: str, caption: str = None, breakabl
     for row_idx, row in enumerate(content_rows[1:], start=1):
         typ_table.append(f"    // Row {row_idx}")
         for col in row:
-            cell_formatted = format_inline_markdown(col)
+            span, clean_col = _get_cell_span(col)
+            cell_formatted = format_inline_markdown(clean_col)
             cell_formatted = cell_formatted.replace("<br>", " \\\n").replace("<br/>", " \\\n")
-            typ_table.append(f"    table.cell[#set par(first-line-indent: (amount: 0em, all: true)); {cell_formatted}],")
+            if span > 1:
+                typ_table.append(f"    table.cell(colspan: {span})[#set par(first-line-indent: (amount: 0em, all: true)); {cell_formatted}],")
+            else:
+                typ_table.append(f"    table.cell[#set par(first-line-indent: (amount: 0em, all: true)); {cell_formatted}],")
 
     typ_table.append("  )")
     typ_table.append("]]")
@@ -765,6 +782,10 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                     raw_frontmatter = parsed_yaml
                     metadata.update(parsed_yaml)
                     has_frontmatter = True
+                    if '摘要' in metadata and not metadata.get('abstract'):
+                        metadata['abstract'] = metadata['摘要']
+                    if '关键词' in metadata and not metadata.get('keywords'):
+                        metadata['keywords'] = metadata['关键词']
             except Exception as e:
                 print(f"Warning: YAML parse error: {e}")
             body = parts[2]
@@ -772,26 +793,49 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     # 密级保底净化：若包含体裁后缀则自动剔除
     if "/" in str(metadata.get("classification", "")):
         metadata["classification"] = metadata["classification"].split("/")[0].strip()
+    def is_section_heading(text: str) -> bool:
+        t = text.strip()
+        if re.match(r'^\d+(?:\.\d+)*[、. ]', t) or re.match(r'^\d+[、. ]', t):
+            return True
+        if re.match(r'^[一二三四五六七八九十百]+[、. ]', t):
+            return True
+        if re.match(r'^[（(][一二三四五六七八九十\d]+[)）]', t):
+            return True
+        if re.match(r'^第[一二三四五六七八九十\d]+[章节条部分篇卷讲课节]', t):
+            return True
+        if re.match(r'^(?:附录|引言|前言|概述|总结|结语|参考文献)(?:[、. ]|$)', t):
+            return True
+        return False
+
     body_lines = body.split("\n")
     clean_lines = []
     has_removed_h1 = False
     has_removed_subtitle = False
+    seen_content_after_h1 = False
     in_cb = False
     for l in body_lines:
-        if l.strip().startswith("```"):
+        stripped = l.strip()
+        if stripped.startswith("```"):
             in_cb = not in_cb
-        if not in_cb and not has_removed_h1 and l.strip().startswith("# ") and not l.strip().startswith("## "):
+        if not in_cb and not has_removed_h1 and stripped.startswith("# ") and not stripped.startswith("## "):
             has_removed_h1 = True
-            extracted_title = l.strip()[2:].strip()
+            extracted_title = stripped[2:].strip()
             if extracted_title and (not has_frontmatter or metadata.get('title') in ('', '技术工程设计基准')):
                 metadata['title'] = extracted_title
             continue
-        if not in_cb and has_removed_h1 and not has_removed_subtitle and l.strip().startswith("## "):
-            has_removed_subtitle = True
-            extracted_sub = l.strip()[3:].strip()
-            if extracted_sub and not metadata.get('subtitle'):
-                metadata['subtitle'] = extracted_sub
-            continue
+        # 仅在尚未出现任何正文内容、未提供 Frontmatter 或显式匹配 subtitle，且非章节编号时，才将紧随 H1 的 ## 识别为副标题剥离
+        if not in_cb and has_removed_h1 and not has_removed_subtitle and not seen_content_after_h1 and stripped.startswith("## "):
+            extracted_sub = stripped[3:].strip()
+            if not is_section_heading(extracted_sub) and (extracted_sub == metadata.get("subtitle") or (not has_frontmatter and not metadata.get("subtitle"))):
+                has_removed_subtitle = True
+                if not metadata.get("subtitle"):
+                    metadata["subtitle"] = extracted_sub
+                continue
+            else:
+                seen_content_after_h1 = True
+        elif not in_cb and has_removed_h1 and stripped and not stripped.startswith("<!--"):
+            seen_content_after_h1 = True
+
         clean_lines.append(l)
 
     # 智能启发式元数据提取：当未提供 Frontmatter 时，尝试从 H1 下方的元数据键值行中自适应提取
@@ -800,11 +844,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         stripped_l = l.strip()
         if not stripped_l:
             continue
-        if stripped_l.startswith("## "):
-            if not metadata.get('subtitle'):
-                metadata['subtitle'] = stripped_l[3:].strip()
-            continue
-        if stripped_l.startswith("# ") or stripped_l == "---":
+        if stripped_l.startswith("## ") or stripped_l.startswith("# ") or stripped_l == "---":
             break
         if stripped_l.startswith(">"):
             stripped_l = stripped_l[1:].strip()
@@ -889,7 +929,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     # 预设体裁配置字典
     GENRE_PRESETS = {
         "course": {
-            "author": "教 学 团 队",
+            "author": "编 写 团 队",
             "institution": "开 课 单 位",
             "date": "编 制 日 期",
             "document_id": "课程编号",
@@ -986,6 +1026,10 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             footer_left = f'#text("{inst_val}") · #text(fill: rgb("#0f172a"), weight: "medium")[{class_val}]'
         else:
             footer_left = f'#text(fill: rgb("#0f172a"), weight: "medium")[{class_val}]'
+    elif matched_genre == "course":
+        # 教材/课程模式：页脚严格展示编写团队 (author)，绝不使用开课单位
+        author_val = metadata.get('author', '')
+        footer_left = f'#text("{author_val}")' if author_val else '#text("")'
     else:
         footer_left = f'#text("{inst_val}")' if inst_val else '#text("")'
     # 智能断行处理编制团队与研发机构
@@ -1105,7 +1149,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 #show list: set block(above: 0.85em, below: 0.85em)
 #show enum: set block(above: 0.85em, below: 0.85em)
 
-// 列表首行对齐：第一级统一缩进 2em，子列表由 Typst 原生语法自然对齐""")
+// 列表首行对齐：第一级统一缩进 2em，子列表由 Typst 原生语法自然对齐// 列表首行对齐：第一级统一缩进 2em，子列表由 Typst 原生语法自然对齐""")
 
     typ_lines.append(f"""
 // 图表原生编号样式优化（去除默认额外 supplement）
@@ -1711,6 +1755,11 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             i += 1
             continue
 
+        # 过滤专为 Web/HTML 交互设计的辅助提示（如 "🔗 交互式架构视图：点击可在浏览器中查看..."），杜绝泄露至出版级 PDF/长图
+        if (stripped.startswith(">") or stripped.startswith("🔗") or stripped.startswith("-") or stripped.startswith("*")) and ("交互式" in stripped or "浏览器中查看" in stripped) and any(ext in stripped.lower() for ext in [".html", ".htm"]):
+            i += 1
+            continue
+
         # 用户明确要求：普通通用分页符不要渲染，无论出现在什么位置
         if re.match(r'^<!--\s*(?:page\s*break|newpage)\s*-->$', stripped, re.IGNORECASE) or stripped in (r"\newpage", r"\pagebreak") or re.match(r'^<div\s+[^>]*(?:page-break-(?:before|after)|break-(?:before|after))\s*:\s*(?:always|page)[^>]*>\s*</div>$', stripped, re.IGNORECASE):
             i += 1
@@ -1790,9 +1839,50 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         # 目录生成识别：遇到 "## 目录" 自动输出 Typst 原生可点击大纲，并自动消费后续手动目录列表
         if stripped.startswith("## ") and any(stripped[3:].strip() == k for k in ["目录", "目 录", "Table of Contents", "TOC"]):
             section_list_counter = 0
-            # 目录前是否分页完全由 Markdown 源码显式 <!-- pagebreak --> 或 Frontmatter 配置决定，绝不在编译器中硬编码换页
-            before_pb = ""
-            after_pb = "#v(1.0em)\n"
+            # 目录前是否分页：检测 Markdown 源码中显式 <!-- pagebreak --> / <!-- force-pagebreak --> 或 Frontmatter 配置
+            has_before_pb = False
+            if metadata.get('standalone_toc') or metadata.get('toc_pagebreak') or str(metadata.get('toc', '')).lower() in ('standalone', 'pagebreak', 'true'):
+                has_before_pb = True
+            else:
+                idx_prev = i - 1
+                while idx_prev >= 0:
+                    p_line = clean_lines[idx_prev].strip()
+                    if not p_line or re.match(r'^-{3,}$', p_line) or re.match(r'^\*{3,}$', p_line):
+                        idx_prev -= 1
+                        continue
+                    if re.search(r'<!--\s*(?:force-)?pagebreak(?::\w+)?\s*-->', p_line, re.IGNORECASE) or p_line in (r'\newpage', r'\pagebreak'):
+                        has_before_pb = True
+                    break
+
+            if has_before_pb and mode != "long":
+                last_non_empty = next((l.strip() for l in reversed(typ_lines) if l.strip()), "")
+                before_pb = "" if last_non_empty.endswith("#pagebreak()") else "#pagebreak()\n"
+            else:
+                before_pb = ""
+
+            # 目录后是否分页：向前消费手动目录列表并检测后置分页指令
+            has_after_pb = False
+            if metadata.get('standalone_toc') or metadata.get('toc_pagebreak') or str(metadata.get('toc', '')).lower() in ('standalone', 'pagebreak', 'true'):
+                has_after_pb = True
+
+            i += 1
+            while i < len(clean_lines):
+                nxt = clean_lines[i].strip()
+                if re.search(r'<!--\s*(?:force-)?pagebreak(?::\w+)?\s*-->', nxt, re.IGNORECASE) or nxt in (r'\newpage', r'\pagebreak'):
+                    has_after_pb = True
+                if nxt.startswith("## ") or nxt.startswith("# "):
+                    break
+                if re.match(r'^-{3,}$', nxt) or re.match(r'^\*{3,}$', nxt):
+                    i += 1
+                    while i < len(clean_lines) and not clean_lines[i].strip():
+                        i += 1
+                    if i < len(clean_lines) and (re.search(r'<!--\s*(?:force-)?pagebreak(?::\w+)?\s*-->', clean_lines[i].strip(), re.IGNORECASE) or clean_lines[i].strip() in (r'\newpage', r'\pagebreak')):
+                        has_after_pb = True
+                        i += 1
+                    break
+                i += 1
+
+            after_pb = "#pagebreak()\n" if (has_after_pb and mode != "long") else "#v(1.0em)\n"
 
             typ_lines.append(f"""
 {before_pb}#v(0.8em)
@@ -1806,14 +1896,6 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   )
 ]
 {after_pb}""")
-            i += 1
-            while i < len(clean_lines):
-                nxt = clean_lines[i].strip()
-                if nxt.startswith("## ") or nxt.startswith("# ") or re.match(r'^-{3,}$', nxt) or re.match(r'^\*{3,}$', nxt):
-                    if re.match(r'^-{3,}$', nxt) or re.match(r'^\*{3,}$', nxt):
-                        i += 1
-                    break
-                i += 1
             continue
 
         # 章节标题转换（由 Typst block above/below 统一精准控制，小节内列表计数器归零）
@@ -2059,6 +2141,21 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 if m_w:
                     w_val = m_w.group(1)
                     custom_width = w_val if any(w_val.endswith(u) for u in ['%', 'mm', 'cm', 'pt', 'em']) else f"{w_val}%"
+                else:
+                    # 原生支持 Marp 语法: ![width:60% 图...](path) 或 ![w:450px 图...](path)
+                    marp_pat = re.compile(r'(?:^|\s)(?:w|width)[:=]\s*([0-9]+(?:%|px|mm|cm|pt|em)?)(?=\s|$)', re.IGNORECASE)
+                    marp_m = marp_pat.search(img_caption)
+                    if marp_m:
+                        w_val = marp_m.group(1)
+                        if w_val.endswith('%') or any(w_val.endswith(u) for u in ['mm', 'cm', 'pt', 'em']):
+                            custom_width = w_val
+                        elif w_val.endswith('px'):
+                            px_num = float(w_val[:-2])
+                            pct = min(100, max(20, round(px_num / 720 * 100)))
+                            custom_width = f"{pct}%"
+                        else:
+                            custom_width = f"{w_val}%"
+                        img_caption = marp_pat.sub('', img_caption).strip()
             else:
                 img_path = html_img_match.group(1).strip()
                 alt_m = re.search(r'''alt=["\']([^"\']+)["\']''', stripped, re.IGNORECASE)
@@ -2165,51 +2262,27 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         indent = len(line) - len(line.lstrip())
 
         # =========================================================================
-        # 1. 第二级与深层嵌套列表与从属文本 (indent >= 2)
+        # 1. 第二级与深层嵌套列表与从属文本 (indent >= 2) - 原生流式语法映射
         # =========================================================================
         if indent >= 2:
             m_sub_num = re.match(r'^\d+\.\s+', stripped)
             m_sub_bullet = re.match(r'^[\*\-]\s+', stripped)
             prefix = "    " if indent >= 4 else "  "
             if m_sub_num:
-                # 第二级/第三级有序列表：对齐到段落首部，应用出版规范模式 A (1), (2), (3)
                 item_body = stripped[len(m_sub_num.group(0)):].strip()
-                # 检查下一行是否是公式块、代码块或更深缩进的子内容，或者是引出词
-                next_is_child = (i + 1 < len(clean_lines)) and (
-                    clean_lines[i+1].strip().startswith("$$") or 
-                    clean_lines[i+1].strip().startswith("```") or
-                    (len(clean_lines[i+1]) - len(clean_lines[i+1].lstrip()) > indent)
-                )
-                if not next_is_child and not re.search(r'(如下|包括|为|即)[：:]\s*$', item_body):
-                    item_body = re.sub(r'[：:]\s*$', '', item_body)
-                    item_body = re.sub(r'[：:](\*\*|__)\s*$', r'\1', item_body)
-                formatted_item = format_inline_markdown(item_body)
-                typ_lines.append(f"{prefix}+ {formatted_item}")
+                typ_lines.append(f"{prefix}+ {format_inline_markdown(item_body)}")
                 i += 1
                 continue
             elif m_sub_bullet:
-                # 第二级/第三级无序列表：对齐到段落首部
                 item_body = re.sub(r'^[\*\-]\s+', '', stripped)
-                next_is_child = (i + 1 < len(clean_lines)) and (
-                    clean_lines[i+1].strip().startswith("$$") or 
-                    clean_lines[i+1].strip().startswith("```") or
-                    (len(clean_lines[i+1]) - len(clean_lines[i+1].lstrip()) > indent)
-                )
-                if not next_is_child and not re.search(r'(如下|包括|为|即)[：:]\s*$', item_body):
-                    item_body = re.sub(r'[：:]\s*$', '', item_body)
-                    item_body = re.sub(r'[：:](\*\*|__)\s*$', r'\1', item_body)
-                formatted_item = format_inline_markdown(item_body)
-                typ_lines.append(f"{prefix}- {formatted_item}")
+                typ_lines.append(f"{prefix}- {format_inline_markdown(item_body)}")
                 i += 1
                 continue
             else:
-                # 列表项内部从属延续段落：缩进挂靠在父列表项内部，首行与列表文本对齐，严禁破除列表上下文
-                p_formatted = format_inline_markdown(stripped)
-                typ_lines.append(f"{prefix}#par(first-line-indent: 0em)[{p_formatted}]")
+                # 嵌套从属正文/代码：按标准段落输出，绝不包裹 block 或清零缩进
+                typ_lines.append(format_inline_markdown(stripped))
                 i += 1
                 continue
-
-        # =========================================================================
         # 2. 第一级列表 (indent < 2)：原生流式排版，保留粗体行内语义，严禁强加换行
         # =========================================================================
         is_unordered = re.match(r'^[\*\-]\s+', stripped)
@@ -2244,24 +2317,53 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             continue
 
         # =========================================================================
-        # 4. 普通正文段落
         # =========================================================================
-        p_formatted = format_inline_markdown(stripped)
-        # 支持 Markdown 规范的行尾双空格硬换行，以及连续 **键**：值 格式行的换行保护，防止塌陷为一个长段落
+        # 4. 普通正文段落（标准流式段落，支持 Markdown 行尾双空格硬换行条目组）
+        # =========================================================================
         raw_line = clean_lines[i]
         line_no_nl = raw_line[:-1] if raw_line.endswith(chr(10)) else raw_line
         if line_no_nl.endswith(chr(13)): line_no_nl = line_no_nl[:-1]
         has_hard_break = line_no_nl.endswith("  ") or line_no_nl.endswith(chr(92))
-        is_kv_line = bool(re.match(r'^\*\*([^\*：:]+)\*\*[：:]\s*(.*)', stripped))
-        next_is_kv = False
-        if i + 1 < len(clean_lines):
-            next_is_kv = bool(re.match(r'^\*\*([^\*：:]+)\*\*[：:]\s*(.*)', clean_lines[i+1].strip()))
-        
-        if (has_hard_break or (is_kv_line and next_is_kv)) and not p_formatted.endswith(chr(92)):
-            p_formatted += " " + chr(92)
 
-        typ_lines.append(p_formatted)
-        i += 1
+        if has_hard_break:
+            # 连续硬换行构成的条目组：保持整组左侧完全平齐，消除首行2em与后续行顶格的错位
+            block_items = []
+            curr_i = i
+            while curr_i < len(clean_lines):
+                c_line = clean_lines[curr_i]
+                c_stripped = c_line.strip()
+                if not c_stripped:
+                    break
+                c_no_nl = c_line[:-1] if c_line.endswith(chr(10)) else c_line
+                if c_no_nl.endswith(chr(13)): c_no_nl = c_no_nl[:-1]
+                c_has_hb = c_no_nl.endswith("  ") or c_no_nl.endswith(chr(92))
+                
+                c_fmt = format_inline_markdown(c_stripped)
+                block_items.append((c_fmt, c_has_hb))
+                curr_i += 1
+                if not c_has_hb:
+                    break
+
+            if len(block_items) > 1:
+                joined_block = []
+                for idx_b, (fmt_text, _) in enumerate(block_items):
+                    if idx_b < len(block_items) - 1:
+                        joined_block.append(f"{fmt_text} " + chr(92))
+                    else:
+                        joined_block.append(fmt_text)
+                typ_lines.append("#par(first-line-indent: 0em)[")
+                typ_lines.extend(joined_block)
+                typ_lines.append("]")
+                i = curr_i
+                continue
+            else:
+                typ_lines.append(block_items[0][0])
+                i = curr_i
+                continue
+        else:
+            p_formatted = format_inline_markdown(stripped)
+            typ_lines.append(p_formatted)
+            i += 1
 
 
     if in_table:

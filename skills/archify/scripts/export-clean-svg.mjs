@@ -40,10 +40,13 @@ export async function exportCleanSvg(htmlPath, outputSvgPath, theme = 'light') {
     const url = new URL(pathToFileURL(htmlAbs).href);
     url.searchParams.set('theme', theme);
 
-    const loaded = browser.cdp.waitFor('Page.loadEventFired', sessionId);
     const navigation = await browser.cdp.send('Page.navigate', { url: url.href }, sessionId);
     if (navigation.errorText) throw new Error(`Chrome 导航失败: ${navigation.errorText}`);
-    await loaded;
+    for (let i = 0; i < 60; i++) {
+      const ready = await evaluate(browser.cdp, sessionId, `document.readyState !== 'loading' && Boolean(document.querySelector('svg'))`).catch(() => false);
+      if (ready) break;
+      await new Promise(r => setTimeout(r, 50));
+    }
 
     // 确保字体与主题计算就绪
     await evaluate(browser.cdp, sessionId, `(function () {
