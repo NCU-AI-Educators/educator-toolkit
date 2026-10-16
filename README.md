@@ -24,6 +24,7 @@
 *   **🧠 Skills**: 专为 AI Coding Agent (Antigravity / Claude Code / Cursor 等) 打造的专业技能包。[查看总览说明](./skills/README.md)
     *   **[archify](./skills/archify/README.md)**: 现代系统架构、时序交互与工程图表可视化引擎。支持高维富交互 Web 探索与出版级纯净矢量（Clean SVG）导出。
     *   **[typst](./skills/typst/README.md)**: 基于单一事实源 (SSOT) 哲学的学术教材与工业出版级 Typst/PDF 编译器。支持 A4 双面印刷装订排版、科技三线表与 Kroki 算力集成。
+    *   **[docx](./skills/docx/README.md)**: 出版级 Microsoft Word (`.docx`) 编译器。支持 A4 页面规范、Word 原生导航大纲、中文 2em 首行缩进、五色 Callout 卡片、跨页重复表头的科技三线表与上标尾注文献。
 
 ## 贡献指南
 欢迎各位老师提交 Pull Request 分享您的教学工具！
