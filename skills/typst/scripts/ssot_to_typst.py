@@ -7,7 +7,7 @@ SSOT-to-Typst: 单一事实源基准 (SSOT) 编译出版级矢量 PDF 核心转�
 ==============================================================================
 特性融合:
 1. 完整继承 NCU 辛苦调优的 A4 双面印刷排版规范 (奇偶对称页眉、内外书脊边距、三线表、show raw 卡片)
-2. 深度集成 4090 服务器本地 Kroki 统一图表算力 (Mermaid/PlantUML/D2/Graphviz)
+    2. 深度集成 Kroki 多语言图表渲染引擎 (Mermaid/PlantUML/D2/Graphviz，默认对接 https://kroki.io 并支持自托管实例)
 3. 严密解决 LaTeX 数学公式多字母变量引号保护、算子映射与反斜杠剥除
 4. 顶级元数据台设计: 标签与内容上下分层、语义智能断句对齐 (杜绝截字断行)
 5. 工业级鲁棒性: 列表符号兼容、@ 符号转义、防表头分页断开 (breakable: false)
@@ -50,8 +50,10 @@ TYPST_MATH_BUILTINS = {
 }
 
 def render_diagram_via_kroki(source: str, diagram_type: str, output_dir: str) -> str:
-    """通过 4090 服务器上的 Kroki 算力渲染图表并缓存为图片"""
-    kroki_endpoint = os.getenv("KROKI_ENDPOINT", "http://192.168.8.6:8000").rstrip("/")
+    """通过 Kroki 引擎（优先 KROKI_ENDPOINT 自建端点，默认/回退官方 https://kroki.io）渲染图表并缓存为图片"""
+    public_endpoint = "https://kroki.io"
+    custom_endpoint = os.getenv("KROKI_ENDPOINT", "").strip().rstrip("/")
+    endpoints = [custom_endpoint, public_endpoint] if custom_endpoint and custom_endpoint != public_endpoint else [public_endpoint]
     fmt = "png" if diagram_type.lower() == "mermaid" else "svg"
 
     content_hash = hashlib.md5(f"{diagram_type}:{source.strip()}".encode('utf-8')).hexdigest()[:12]
@@ -63,26 +65,29 @@ def render_diagram_via_kroki(source: str, diagram_type: str, output_dir: str) ->
     if os.path.exists(target_path) and os.path.getsize(target_path) > 0:
         return target_path
 
-    url = f"{kroki_endpoint}/{diagram_type.lower()}/{fmt}"
-    try:
-        req = urllib.request.Request(
-            url,
-            data=source.strip().encode('utf-8'),
-            headers={
-                'Content-Type': 'text/plain; charset=utf-8',
-                'User-Agent': 'NCU-Typst-Pipeline/1.0'
-            }
-        )
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            data = resp.read()
-            if len(data) > 0:
-                with open(target_path, "wb") as f:
-                    f.write(data)
-                return target_path
-    except Exception as e:
-        print(f"⚠️  [Kroki] 图表渲染降级 ({diagram_type}): {e}")
-        return None
+    last_err = None
+    for endpoint in endpoints:
+        url = f"{endpoint}/{diagram_type.lower()}/{fmt}"
+        try:
+            req = urllib.request.Request(
+                url,
+                data=source.strip().encode('utf-8'),
+                headers={
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'User-Agent': 'NCU-Typst-Pipeline/1.0'
+                }
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = resp.read()
+                if len(data) > 0:
+                    with open(target_path, "wb") as f:
+                        f.write(data)
+                    return target_path
+        except Exception as e:
+            last_err = e
+            continue
 
+    print(f"⚠️  [Kroki] 图表渲染降级 ({diagram_type}): {last_err}")
     return None
 
 def format_org_cell(text: str, max_chars: int = 14) -> str:
@@ -1042,7 +1047,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         # 长图模式：100% 遵循当前出版级排版规范，仅采用连续无缝版心 (height: auto) 并去除页眉页脚
         typ_lines.append(f"""// ==============================================================================
 // NCU Smart Platform - 全场景技术文档出版生产线 (自适应无缝长图模式)
-// 编译核心: Typst 0.15+ | 算力画图: 4090 Kroki 引擎
+// 编译核心: Typst 0.15+ | 图表引擎: Kroki (https://kroki.io)
 // 研制机构: {metadata['institution']}
 // ==============================================================================
 
@@ -1058,7 +1063,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         # A4 双面印刷出版模式：对称装订边距与奇偶页动态页眉页脚
         typ_lines.append(f"""// ==============================================================================
 // NCU Smart Platform - A4 出版级技术规范双面排版系统 (SSOT 调优版)
-// 编译核心: Typst 0.15+ | 算力画图: 4090 Kroki 引擎
+// 编译核心: Typst 0.15+ | 图表引擎: Kroki (https://kroki.io)
 // 研制机构: {metadata['institution']}
 // ==============================================================================
 
