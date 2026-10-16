@@ -7,7 +7,7 @@
 
 ## 资源目录
 *   **🧩 VS Code Extensions**:
-    *   **[Hawk's Styled Markdown Preview](https://marketplace.visualstudio.com/items?itemName=hawklee.md-styled-html-preview)**: 🦅 专为教育者设计的 Markdown 预览插件。支持学术风格排版、MathJax 公式、拼音标注、GitHub 风格提示块以及**提词器模式**。支持一键导出为独立的 HTML 文件。
+    *   **[Hawk's Styled Markdown Preview](https://marketplace.visualstudio.com/items?itemName=hawklee.md-styled-html-preview)**: 🦅 专为教育者设计的 Markdown 预览插件。支持学术风格排版、MathJax 公式、拼音标注、GitHub 风格提示块以及 **提词器模式**。支持一键导出为独立的 HTML 文件。
         [![Version](https://img.shields.io/visual-studio-marketplace/v/hawklee.md-styled-html-preview?style=flat-square&label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=hawklee.md-styled-html-preview)
 *   **🤖 Prompts**: 精选的系统级提示词库 (System Prompts)。
     *   `role-act-as-reviewer`: 模拟严厉的审稿人
@@ -25,6 +25,7 @@
     *   **[archify](./skills/archify/README.md)**: 现代系统架构、时序交互与工程图表可视化引擎。支持高维富交互 Web 探索与出版级纯净矢量（Clean SVG）导出。
     *   **[typst](./skills/typst/README.md)**: 基于单一事实源 (SSOT) 哲学的学术教材与工业出版级 Typst/PDF 编译器。支持 A4 双面印刷装订排版、科技三线表与 Kroki 算力集成。
     *   **[docx](./skills/docx/README.md)**: 出版级 Microsoft Word (`.docx`) 编译器。支持 A4 页面规范、Word 原生导航大纲、中文 2em 首行缩进、五色 Callout 卡片、跨页重复表头的科技三线表与上标尾注文献。
+    *   **[markdown-cjk-spacer](./skills/markdown-cjk-spacer/README.md)**: 中文字符与 Markdown 行内格式串（加粗、斜体、行内代码等）盘古之白空格自动补全引擎，内置跨加粗防倒置误伤与代码块保护。
 
 ## 贡献指南
 欢迎各位老师提交 Pull Request 分享您的教学工具！

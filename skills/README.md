@@ -13,19 +13,20 @@
 | **Archify** | [`skills/archify/`](./archify/) | 架构与工程可视化引擎 (基于开源项目改造) | <ul><li>支持架构图、时序图、数据流图、状态机等 5 大图表族</li><li>双轨模式：浏览器富交互探索 + 出版级纯净矢量（Clean SVG）导出</li><li>自动字号优化 (+2.5px)、半透明同色系徽章、无交互外壳残留</li><li>专为高校教材、学术论文与科研方案排版设计</li></ul> |
 | **Typst** | [`skills/typst/`](./typst/) | 单一事实源 (SSOT) 出版级 PDF/长图编译器 | <ul><li>A4 双面印刷排版（对称书脊装订边距、奇偶动态页眉）</li><li>科技论文三线表排版引擎</li><li>LaTeX 数学公式与变量双引号保护</li><li>集成 4090 Kroki 算力与原生矢量图嵌入</li></ul> |
 | **Docx** | [`skills/docx/`](./docx/) | 单一事实源 (SSOT) 出版级 Word (`.docx`) 编译器 | <ul><li>A4 标准页面、动态页眉与页脚原生 `PAGE` 页码域</li><li>绑定 Word 原生 `Heading 1~3` 大纲层级，支持导航窗格与自动目录</li><li>中文正文 2em 首行缩进、五色 GitHub Callout 卡片、代码块卡片</li><li>“图下表上”防跨页撕裂、跨页自动重复表头的科技三线表与上标尾注文献</li></ul> |
+| **Markdown CJK Spacer** | [`skills/markdown-cjk-spacer/`](./markdown-cjk-spacer/) | 中文与行内格式串盘古之白自动补全引擎 | <ul><li>精准识别紧贴汉字的 `**加粗**`、`**“加粗引号”**`、`` `code` ``、`*斜体*`</li><li>词法 Token 判定机制，杜绝同一行多个加粗块的跨块倒置误匹配</li><li>围栏代码块（` ``` `）与数学公式块（`$$`）完全免疫保护</li><li>支持单文件或全项目递归扫描，具备预览与就地修改双模式</li></ul> |
 
 ---
 
 ## ⚡ 核心联动工作流：出版级学术材料生产线
 
-`Archify`、`Typst` 与 `Docx` 构成了完整的学术与公文出版生产流水线，彻底打破了“画图模糊、排版错位、格式割裂”的长期痛点：
+`Archify`、`Markdown CJK Spacer`、`Typst` 与 `Docx` 构成了完整的学术与公文出版生产流水线，彻底打破了“画图模糊、排版错位、格式割裂”的长期痛点：
 
 <p align="center">
   <img src="./assets/archify-pipeline-flow.png" alt="核心联动工作流：出版级学术材料生产线 (Archify 绘制)" width="98%">
 </p>
 
 > 💡 **生产线全景架构解析**：
-> 1. **单一事实源驱动 (SSOT)**：所有教材教案、调研报告、技术设计与拓扑架构均源自同一套受控 Markdown 文档，杜绝割裂维护；
+> 1. **单一事实源驱动 (SSOT)**：所有教材教案、调研报告、技术设计与拓扑架构均源自同一套受控 Markdown 文档，并通过 `Markdown CJK Spacer` 自动消除中西文与行内加粗粘连，杜绝解析异常；
 > 2. **Archify 纯净矢量清洗**：AI Agent 自动识别系统组件并生成交互式拓扑，经由无头 Chrome CDP 清洗管道（`export-clean-svg`）剔除所有浏览器外壳与控件，并自动加权放大字号（+2.5px），输出印刷级 Clean SVG；
 > 3. **Typst / Docx 双栖出版**：同一份 Markdown 既可通过 `Typst` 输出符合国家学术标准的 A4 双面印刷矢量 PDF 与移动端无缝长图，也可通过 `Docx` 一键输出符合高校公文与教务申报规范的可编辑 Microsoft Word（`.docx`）文档。
 
@@ -74,6 +75,10 @@
 - **带插图与多级大纲的公文交付**：
   > *“帮我用 docx 技能把当前文档转成可编辑的 Word 文档，确保章节标题能直接在 Word 导航窗格跳转，正文首行缩进两字符。”*
 
+#### ✨ 触发 Markdown CJK Spacer 盘古之白空格补全技能
+- **单文件或全局行内格式串空格修复**：
+  > *“请修复文档中所有紧贴中文字符的 `**加粗**` 和 `` `行内代码` `` 两侧缺失的空格。”*
+
 ---
 
 ### 方式二：斜杠命令方式直接调用（Slash Commands，直达目标）
@@ -102,8 +107,14 @@
 | `/docx [md文件] [docx路径]` | `/docx docs/report.md output/report.docx` | 指定输出路径生成 Word 文档 |
 | `/docx [文档路径] --header [文本]` | `/docx docs/report.md --header "高校通识教育改革调研"` | 自定义 Word 右上角页眉文本 |
 
+#### 4. Markdown CJK Spacer 斜杠命令
+| 命令形式 | 典型调用示例 | 效果说明 |
+| :--- | :--- | :--- |
+| `/markdown-cjk-spacer [文档路径]` | `/markdown-cjk-spacer docs/调研报告.md` | 自动扫描并补全指定文件中紧贴汉字的行内格式串外侧空格 |
+| `/markdown-cjk-spacer [目录路径]` | `/markdown-cjk-spacer .` | 递归扫描并批量修复目录下所有 `.md` 文件的格式串间距 |
+
 > 💡 **智能体工作机制提示**：
-> 当您键入 `/archify`、`/typst` 或 `/docx` 时，智能体会分别加载 `skills/archify/SKILL.md`、`skills/typst/SKILL.md` 或 `skills/docx/SKILL.md`。三者既可独立调用，亦可在单轮对话中无缝串联，从同一份 Markdown 单一事实源同步产出 Clean SVG、出版级 PDF 与可编辑 Word（`.docx`）。
+> 当您键入 `/archify`、`/typst`、`/docx` 或 `/markdown-cjk-spacer` 时，智能体会分别加载对应的 `SKILL.md`。四者既可独立调用，亦可在单轮对话中无缝串联，从同一份受控 Markdown 单一事实源同步产出 Clean SVG、出版级 PDF 与可编辑 Word（`.docx`）。
 
 ---
 
