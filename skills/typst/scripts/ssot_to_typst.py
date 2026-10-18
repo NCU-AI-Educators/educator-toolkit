@@ -46,7 +46,7 @@ TYPST_MATH_BUILTINS = {
     "Kappa", "Lambda", "Mu", "Nu", "Xi", "Omicron", "Pi", "Rho", "Sigma", "Tau",
     "Upsilon", "Phi", "Chi", "Psi", "Omega",
     "underbrace", "overbrace", "underbracket", "overbracket",
-    "forall", "exists", "scripts", "prime", "limits"
+    "forall", "exists", "scripts", "prime", "limits", "degree", "circle"
 }
 
 def render_diagram_via_kroki(source: str, diagram_type: str, output_dir: str) -> str:
@@ -133,7 +133,7 @@ def quote_math_words(s: str) -> str:
             return w
         return f'"{w}"'
     
-    parts = s.split('"')
+    parts = re.split(r'(?<!\\)"', s)
     pattern = re.compile(r'(?<![a-zA-Z\.])([A-Za-z]{2,})(?![a-zA-Z\.])')
     for i in range(0, len(parts), 2):
         parts[i] = pattern.sub(repl, parts[i])
@@ -151,9 +151,11 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     raw = re.sub(r'\\end\{(?:aligned|align\*?|split)\}', '', raw)
     raw = re.sub(r'\\\\', ' \\ \n', raw)
 
-    raw = re.sub(r'\\text\{([^}]+)\}', lambda m: f'"{m.group(1).strip()}"', raw)
-    raw = re.sub(r'\\mathrm\{([^}]+)\}', lambda m: f'"{m.group(1).strip()}"', raw)
+    raw = re.sub(r'\\text\{([^}]+)\}', lambda m: '"' + m.group(1).strip().replace('\\"', '"').replace('"', '\\"') + '"', raw)
+    raw = re.sub(r'\\mathrm\{([^}]+)\}', lambda m: '"' + m.group(1).strip().replace('\\"', '"').replace('"', '\\"') + '"', raw)
 
+    # 处理模运算 \pmod{...} -> (mod ...)
+    raw = re.sub(r'\\pmod\s*\{([^}]+)\}', r'(mod \1)', raw)
 
     raw = re.sub(r'\\mathbf\{([^}]+)\}', r'bold(\1)', raw)
     raw = re.sub(r'\\boldsymbol\{([^}]+)\}', r'bold(\1)', raw)
@@ -181,6 +183,14 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     raw = re.sub(r'h\(2em\)', ' quad quad ', raw)
 
     replacements = [
+        (r'\^\s*\\circ(?![a-zA-Z])', 'degree '),
+        (r'\\circ(?![a-zA-Z])', ' circle.small '),
+        (r'\\pmod(?![a-zA-Z])', ' mod '),
+        (r'\\bmod(?![a-zA-Z])', ' mod '),
+        (r'\\neg(?![a-zA-Z])', 'not '),
+        (r'\\lnot(?![a-zA-Z])', 'not '),
+        (r'\\land(?![a-zA-Z])', ' and '),
+        (r'\\lor(?![a-zA-Z])', ' or '),
         (r'\\iint(?![a-zA-Z])', 'integral.double'),
         (r'\\iiint(?![a-zA-Z])', 'integral.triple'),
         (r'\\oint(?![a-zA-Z])', 'integral.cont'),
@@ -207,6 +217,9 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         (r'\\in(?![a-zA-Z])', 'in'),
         (r'\\notin(?![a-zA-Z])', 'not in'),
         (r'\\subset(?![a-zA-Z])', 'subset'),
+        (r'\\subseteq(?![a-zA-Z])', 'subset.eq'),
+        (r'\\supset(?![a-zA-Z])', 'supset'),
+        (r'\\supseteq(?![a-zA-Z])', 'supset.eq'),
         (r'\\forall(?![a-zA-Z])', 'forall'),
         (r'\\exists(?![a-zA-Z])', 'exists'),
         (r'\\not\\longrightarrow(?![a-zA-Z])', 'arrow.r.not'),
@@ -451,6 +464,16 @@ def format_inline_markdown(text: str) -> str:
     text = text.replace("&lt;", "\\<").replace("&gt;", ">")
     text = re.sub(r"(?<!\\)<", r"\\<", text)
 
+    # 转义残留的孤立美元符号（如金额 $550），防止 Typst 将其误判为未闭合数学公式定界符
+    text = re.sub(r"(?<!\\)\$", r"\\$", text)
+
+    # 转义正文中非内联占位符的字面量下划线 _（如文献标题中的 _手机网易网），防止 Typst 误判为未闭合斜体定界符
+    text = re.sub(
+        r"(__INLINE_(?:CODE|MATH|IMG|LINK)_\d+__)|(?<!\\)_",
+        lambda m: m.group(1) if m.group(1) else r"\_",
+        text,
+    )
+
     # 恢复行内数学公式（确保公式内的 < 和数学符号不受文本级转义影响）
     for idx, math_typ in enumerate(maths):
         text = text.replace(f"__INLINE_MATH_{idx}__", f"${math_typ}$")
@@ -464,6 +487,7 @@ def format_inline_markdown(text: str) -> str:
     # 4. 还原行内链接
     for idx, (l_text, l_url) in enumerate(links):
         l_text_clean = re.sub(r'(?<!\\)~', r'\\~', l_text)
+        l_text_clean = re.sub(r'(?<!\\)_', r'\\_', l_text_clean)
         if l_url.startswith("http://") or l_url.startswith("https://") or l_url.startswith("mailto:"):
             link_expr = f'#link("{l_url}")[{l_text_clean}]'
         elif l_url.startswith("#"):
@@ -482,6 +506,10 @@ def format_inline_markdown(text: str) -> str:
 
     # 修复加粗超链接嵌套导致的 Typst 语法回退: #strong#link(...) -> #link(...)[#strong[...]]
     text = re.sub(r'#strong#link\((.*?)\)\[\[(.*?)\]\]', r'#link(\1)[#strong[\2]]', text)
+
+    # 防止行内标签（如 #strong[1. 建模层]）、单元格开头或 <br> 换行后的 "1. "、"- "、"+ " 被 Typst 误判为块级列表 (enum/list)
+    text = re.sub(r'(^|\[|\s\\\s*)(\d+)\.\s+', r'\1\2\\. ', text)
+    text = re.sub(r'(\[|\s\\\s*)([\-\+])\s+', r'\1\\\2 ', text)
     return text
 
 def estimate_text_visual_width(text: str) -> int:
@@ -547,10 +575,10 @@ def calculate_dynamic_col_spec(content_rows: list) -> str:
         return f"({', '.join(specs)})"
     
     # 策略 2: 存在多个流式列（如表 2、表 3、表 5、表 8）
-    # 对于极紧凑列（如序号、单字影响度）依然采用 auto，其余流式列按真实内容体量非线性分配加权 fr
+    # 对于极紧凑列（如序号、单字影响度、单行宽度 <= 12 的双行短标签列）依然采用 auto，其余流式列按真实内容体量非线性分配加权 fr
     fr_scores = []
     for ci in col_info:
-        if ci["is_compact"] and ci["max_raw_len"] <= 10:
+        if ci["is_compact"] and (ci["max_raw_len"] <= 10 or ci["max_line_w"] <= 12):
             fr_scores.append(None) # auto
         else:
             c = ci["col"]
@@ -1167,18 +1195,30 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   fill: rgb("#f8fafc"),
   radius: 4pt,
   inset: (x: 10pt, y: 8pt),
-  text(font: ("Menlo", "Monaco", "Courier New"), size: 8.8pt)[#it]
+  text(font: ("Menlo", "Monaco", "Courier New", "PingFang SC", "Heiti SC", "STHeiti"), size: 8.8pt, top-edge: 0.75em, bottom-edge: 0em)[#it]
 )
 
-// 行内代码原生浅灰边框胶囊
-#show raw.where(block: false): it => box(
-  fill: rgb("#f1f5f9"),
-  inset: (x: 3.5pt, y: 0pt),
-  outset: (y: 2pt),
-  radius: 3pt,
-  stroke: 0.5pt + rgb("#cbd5e1"),
-  text(font: ("Menlo", "Monaco", "Courier New"), size: 9pt)[#it]
-)
+// 行内代码原生浅灰边框胶囊（短标识符用刚性 box，长表达式用可在语法边界断行的 highlight，杜绝两端对齐拉稀）
+#show raw.where(block: false): it => if it.text.len() > 10 {{
+  h(2pt, weak: true)
+  highlight(
+    fill: rgb("#f1f5f9"),
+    stroke: 0.5pt + rgb("#cbd5e1"),
+    radius: 3pt,
+    extent: 1.5pt,
+    text(font: ("Menlo", "Monaco", "Courier New", "PingFang SC", "Heiti SC", "STHeiti"), size: 9pt)[#it.text.replace(", ", ", \\u{{200b}}").replace("(", "(\\u{{200b}}").replace("[", "\\u{{200b}}[").replace("_", "_\\u{{200b}}").replace(".", "\\u{{200b}}.").trim("\\u{{200b}}", at: start)]
+  )
+  h(2pt, weak: true)
+}} else {{
+  box(
+    fill: rgb("#f1f5f9"),
+    inset: (x: 3.5pt, y: 0pt),
+    outset: (y: 2pt),
+    radius: 3pt,
+    stroke: 0.5pt + rgb("#cbd5e1"),
+    text(font: ("Menlo", "Monaco", "Courier New", "PingFang SC", "Heiti SC", "STHeiti"), size: 9pt)[#it]
+  )
+}}
 
 // 引用与重要提示卡片样式
 #show quote.where(block: true): it => block(

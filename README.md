@@ -23,6 +23,7 @@
     *   `md_to_styled_html`: [Markdown 阅读体验优化工具](./md_to_styled_html/README_CN.md) (生成排版精美、支持自动滚动的独立 HTML)
 *   **🧠 Skills**: 专为 AI Coding Agent (Antigravity / Claude Code / Cursor 等) 打造的专业技能包。[查看总览说明](./skills/README.md)
     *   **[archify](./skills/archify/README.md)**: 现代系统架构、时序交互与工程图表可视化引擎。支持高维富交互 Web 探索与出版级纯净矢量（Clean SVG）导出。
+    *   **[textbook-svg](./skills/textbook-svg/README.md)**: 面向高校教材、课程讲义（SSOT Markdown）与深度研究报告的双轨制配图引擎。内置 Track A 极简纯 SVG 概念图（四大母版 + 印刷安全门禁）与 Track B 880px 黄金窄画布高密度“1+N 总分图组”（支持 DOM-to-Pure-SVG 纯矢量与 2x Retina PNG 双模导出，彻底解决复杂大图缩印后字号过小问题）。
     *   **[typst](./skills/typst/README.md)**: 基于单一事实源 (SSOT) 哲学的学术教材与工业出版级 Typst/PDF 编译器。支持 A4 双面印刷装订排版、科技三线表与 Kroki 算力集成。
     *   **[docx](./skills/docx/README.md)**: 出版级 Microsoft Word (`.docx`) 编译器。支持 A4 页面规范、Word 原生导航大纲、中文 2em 首行缩进、五色 Callout 卡片、跨页重复表头的科技三线表与上标尾注文献。
     *   **[markdown-cjk-spacer](./skills/markdown-cjk-spacer/README.md)**: 中文字符与 Markdown 行内格式串（加粗、斜体、行内代码等）盘古之白空格自动补全引擎，内置跨加粗防倒置误伤与代码块保护。
