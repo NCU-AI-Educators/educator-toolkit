@@ -32,7 +32,7 @@ TYPST_MATH_BUILTINS = {
     "sin", "cos", "tan", "cot", "sec", "csc", "arcsin", "arccos", "arctan",
     "sinh", "cosh", "tanh", "log", "ln", "lg", "exp", "min", "max", "argmin", "argmax",
     "det", "dim", "gcd", "lcm", "ker", "hom", "mod", "lim", "sup", "inf", "root", "sqrt",
-    "sum", "prod", "product", "integral", "dif", "partial", "round", "floor", "ceil",
+    "sum", "prod", "product", "integral", "dif", "partial", "round", "floor", "ceil", "abs", "norm", "lr", "mid",
     "bold", "italic", "upright", "underline", "overline", "cal", "bb", "frak", "mono",
     "hat", "tilde", "dot", "ddot", "arrow", "vec", "macron", "top", "accent",
     "in", "notin", "subset", "supset", "approx", "equiv", "propto", "quad", "succ", "prec",
@@ -164,9 +164,15 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     raw = re.sub(r'\\mathbb\{N\}', 'NN', raw)
     raw = re.sub(r'\\mathbb\{Z\}', 'ZZ', raw)
     raw = re.sub(r'\\mathbb\{C\}', 'CC', raw)
+    raw = re.sub(r'\\mathbb\{([^}]+)\}', r'bb(\1)', raw)
     raw = re.sub(r'\\mathcal\{([^}]+)\}', r'cal(\1)', raw)
     raw = re.sub(r'\\sqrt\{([^}]+)\}', r'sqrt(\1)', raw)
 
+    raw = re.sub(r'\\left\\\|(.*?)\\right\\\|', r'norm(\1)', raw)
+    raw = re.sub(r'\\lVert\s*(.*?)\s*\\rVert', r'norm(\1)', raw)
+    raw = re.sub(r'\\\|(.*?)\\\|', r'norm(\1)', raw)
+    raw = re.sub(r'\\left\|(.*?)\\right\|', r'abs(\1)', raw)
+    raw = re.sub(r'\\lvert\s*(.*?)\s*\\rvert', r'abs(\1)', raw)
     raw = re.sub(r'\\left\(', '(', raw)
     raw = re.sub(r'\\right\)', ')', raw)
     raw = re.sub(r'\\left\[', '[', raw)
@@ -201,6 +207,8 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         (r'\\geq(?![a-zA-Z])', '>='),
         (r'\\le(?![a-zA-Z])', '<='),
         (r'\\leq(?![a-zA-Z])', '<='),
+        (r'\\gg(?![a-zA-Z])', '>>'),
+        (r'\\ll(?![a-zA-Z])', '<<'),
         (r'\\ne(?![a-zA-Z])', '!='),
         (r'\\neq(?![a-zA-Z])', '!='),
         (r'\\approx(?![a-zA-Z])', 'approx'),
@@ -391,6 +399,42 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     raw = re.sub(r'\\([a-zA-Z]+)', r'\1', raw)
     raw = re.sub(r'_\{([^}]+)\}', r'_(\1)', raw)
     raw = re.sub(r'\^\{([^}]+)\}', r'^(\1)', raw)
+
+    def parse_paired_bars(s: str) -> str:
+        def is_balanced(expr: str) -> bool:
+            pairs = {')': '(', ']': '[', '}': '{'}
+            stack = []
+            for ch in expr:
+                if ch in '([{':
+                    stack.append(ch)
+                elif ch in pairs:
+                    if not stack or stack[-1] != pairs[ch]:
+                        return False
+                    stack.pop()
+            return len(stack) == 0
+
+        out = []
+        idx = 0
+        n = len(s)
+        allowed_prev = set(' \t\n/+*-=<>([{,^_:')
+        allowed_next = set(' \t\n/+*-=<>)]},^_;:!.')
+        while idx < n:
+            if s[idx] == '|':
+                prev_ok = (idx == 0) or (s[idx - 1] in allowed_prev)
+                if prev_ok and idx + 1 < n and not s[idx + 1].isspace() and s[idx + 1] != '|':
+                    j = s.find('|', idx + 1)
+                    if j != -1 and not s[j - 1].isspace():
+                        inner = s[idx + 1:j]
+                        next_ok = (j + 1 == n) or (s[j + 1] in allowed_next)
+                        if next_ok and is_balanced(inner) and not any(op in inner for op in ('=', '<', '>')):
+                            out.append(f"abs({inner})")
+                            idx = j + 1
+                            continue
+            out.append(s[idx])
+            idx += 1
+        return ''.join(out)
+
+    raw = parse_paired_bars(raw)
     raw = quote_math_words(raw)
 
     return raw
@@ -738,10 +782,12 @@ def parse_markdown_table_to_typst(table_text: str, caption: str = None, breakabl
     if breakable is not None:
         breakable_val = "true" if breakable else "false"
     else:
-        breakable_val = "true"
+        total_cell_chars = sum(len(re.sub(r'\[\^[^\]]+\]|\*+|`', '', str(c))) for r in content_rows for c in r)
+        breakable_val = "true" if (len(content_rows) > 7 or total_cell_chars > 650) else "false"
     typ_table = [
         f"#align(center)[#block(width: 100%, breakable: {breakable_val})[",
         "  #show table.cell: set par(justify: false, first-line-indent: (amount: 0em, all: true))",
+        "  #set table.cell(breakable: false)",
     ]
     if compact:
         typ_table.append("  #show table.cell: set text(size: 9.2pt)")
@@ -836,7 +882,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             return True
         if re.match(r'^第[一二三四五六七八九十\d]+[章节条部分篇卷讲课节]', t):
             return True
-        if re.match(r'^(?:附录|引言|前言|概述|总结|结语|参考文献)(?:[、. ]|$)', t):
+        if re.match(r'^(?:附录|引言|前言|编者按|导读|序言|摘要|概述|总结|结语|参考文献)(?:[、. ]|$)', t):
             return True
         return False
 
