@@ -10,7 +10,7 @@ metadata:
 
 # Archify
 
-Create a self-contained, interactive HTML diagram from a small typed JSON specification. Static output is the default; enable motion only when the user asks for a demo or presentation.
+Create a self-contained, interactive HTML diagram from a small typed JSON specification. Set `meta.animation` to `"trace"` by default so the interactive Motion toggle and WebM video export are always enabled out of the box (ambient trace plays once on load and automatically settles to a clean static state); set `"none"` only when the user explicitly requests strictly static output without motion capability.
 
 ## Runtime environment & symlink resolution
 
@@ -174,7 +174,7 @@ For complete architectural math and Typst integration examples, see `references/
 
 ## Optional viewer capabilities
 
-Generated HTML already contains theme switching, pan/zoom, search, focus, relationship tracing, semantic views, presentation, and truthful exports. These are reader capabilities, not extra authoring work. `meta.animation: "trace"` is opt-in; `meta.views` is optional and should contain at most five curated chapters.
+Generated HTML already contains theme switching, pan/zoom, search, focus, relationship tracing, semantic views, presentation, and truthful exports (including 6-second WebM motion export). These are reader capabilities, not extra authoring work. Default `meta.animation` to `"trace"` so motion controls and WebM export stay active; `meta.views` is optional and should contain at most five curated chapters.
 
 Read `references/viewer-runtime.md` only when the user explicitly asks for Share Cards, Route/Reach cards, motion, guided stories, deep links, presentation, search/focus, or another Viewer Runtime feature.
 

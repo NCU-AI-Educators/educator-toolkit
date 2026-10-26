@@ -6455,7 +6455,11 @@
 
       function canRecordMotion() {
         var svg = document.querySelector('.diagram-container svg');
-        return !!(svg && svg.getAttribute('data-animation') === 'trace' &&
+        var hasMotionTargets = !!(svg && (
+          svg.getAttribute('data-animation') === 'trace' ||
+          svg.querySelector('[data-animate="edge"], [data-edge-from], [data-node-id]')
+        ));
+        return !!(hasMotionTargets &&
           typeof MediaRecorder !== 'undefined' && motionMimeType() &&
           typeof HTMLCanvasElement !== 'undefined' &&
           typeof HTMLCanvasElement.prototype.captureStream === 'function');
@@ -6514,7 +6518,9 @@
             return Number.isFinite(value) ? value : fallback;
           }
 
-          var edges = Array.prototype.slice.call(root.querySelectorAll('[data-animate="edge"]')).map(function (element, index) {
+          var edgeEls = root.querySelectorAll('[data-animate="edge"]');
+          if (!edgeEls.length) edgeEls = root.querySelectorAll('[data-edge-from]');
+          var edges = Array.prototype.slice.call(edgeEls).map(function (element, index) {
             var computed = getComputedStyle(element);
             return {
               points: samplesFor(element),
@@ -6524,7 +6530,9 @@
             };
           }).filter(function (edge) { return edge.points.length > 1; });
 
-          var nodes = Array.prototype.slice.call(root.querySelectorAll('[data-node-id][data-animate="node"]')).map(function (element, index) {
+          var nodeEls = root.querySelectorAll('[data-node-id][data-animate="node"]');
+          if (!nodeEls.length) nodeEls = root.querySelectorAll('[data-node-id]');
+          var nodes = Array.prototype.slice.call(nodeEls).map(function (element, index) {
             var box;
             try { box = element.getBBox(); } catch (_) { return null; }
             var painted = element.querySelector('[class*="c-"]') || element;
