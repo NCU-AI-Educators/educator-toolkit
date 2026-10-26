@@ -86,7 +86,28 @@ Read Mermaid for topology and meaning, then author fresh Archify JSON; do not me
 - Omit `meta.visual_preset` by default so every diagram opens in `classic`, regardless of whether its resolved color mode is light or dark. Color mode and visual preset are independent: switching Light / Dark must preserve the current preset. Set `signal-flow`, `blueprint`, or `editorial` only when the user explicitly requests that visual style.
 - Omit `meta.subtitle` by default. Never invent a subtitle that restates the title, nodes, or cards; include one short supporting line only when the user explicitly asks for it.
 - Treat the standalone desktop viewer as a first-screen artifact by default, not a shallow strip. Generate one responsive artifact for laptops and external displays—never device-specific HTML or alternate topology. The viewer may adapt only the outer reading width from the live viewport height; it must preserve the authored SVG/viewBox, proportions, semantic geometry, and normal document flow. On a wide or tall desktop, use enough authored vertical rhythm that the diagram panel and its necessary conclusion cards occupy the screen as a balanced whole; runtime scaling cannot repair an over-compressed Y layout or an undersized explicit `meta.viewBox`. Before handoff, open the real HTML at 1440×900, 1600×1000, and 1920×1080; additionally check 2048×1320 whenever the composition is intended for a large desktop display. Require `document.documentElement.scrollWidth <= window.innerWidth` and `scrollHeight <= window.innerHeight` at every checked size, while visually checking that the diagram remains comfortably readable and vertically balanced at the largest checked viewport. Repair overflow by removing only genuinely redundant content or compacting spacing before shrinking nodes, labels, or the main panel. If the largest viewport still has a conspicuous empty lower band at the viewer's width cap, redistribute authored Y positions and increase the viewBox height proportionally; do not add filler copy or decorative cards. Never counterfeit a pass with `overflow: hidden`, clipped content, an internal diagram scroller, stretched SVG height, or smaller typography. Narrow/mobile layouts may scroll vertically when containment requires it.
-- Omit `meta.legend` for the truthful `auto` default. When needed, configure `title` (bounded 1-80 character custom legend heading overriding "Legend" / "图例"), `mode: auto|all|hidden`, and renderer-supported `entries.<kind>.label|visible`; labels and titles never change semantics.
+- **Customize legend text to match diagram content (`meta.legend`)**: Do not blindly leave default generic infrastructure labels (e.g. "Frontend / 前端", "Backend / 后端", "Database / 数据库", "Message Bus / 消息总线", or generic "Default / Emphasis") when the diagram depicts a domain-specific workflow, educational concept, AI agent pipeline, compiler pass, or scientific/business process. Actively configure `meta.legend` to align the legend heading and entry labels with the diagram's actual subject matter:
+  - `title`: Custom legend heading (1–80 chars, e.g. `"图例：人机协同角色"` or `"Legend: Pipeline Roles"`), overriding the generic `"Legend"` / `"图例"`.
+  - `mode`: Keep `"auto"` (default, renders only kinds actually used in the diagram), or set `"all"` / `"hidden"`.
+  - `entries.<kind>.label` (1–80 chars) & `entries.<kind>.visible` (`boolean`): Override display wording for each semantic kind used in the diagram using only the schema-supported keys for that diagram type:
+    - `architecture` & `workflow`: `frontend`, `backend`, `database`, `cloud`, `security`, `messagebus`, `external`
+    - `dataflow`: `default`, `emphasis`, `security`, `dashed`, `database`
+    - `sequence`: `default`, `emphasis`, `security`, `dashed`, `return`
+    - `lifecycle`: `start`, `active`, `waiting`, `decision`, `success`, `failure`, `neutral`, `external`
+  - Example (`workflow` / `architecture` with domain-specific legend wording):
+    ```json
+    "legend": {
+      "title": "图例：结对排障职责分域",
+      "mode": "auto",
+      "entries": {
+        "frontend": { "label": "人类领航员 (HOTL 决策)" },
+        "backend": { "label": "AI 驾驶员 (推理与生成)" },
+        "database": { "label": "代码基座与上下文切片" },
+        "security": { "label": "防御式边界守卫 / 验收门禁" }
+      }
+    }
+    ```
+  - Omit `meta.legend` only when the diagram is a standard software infrastructure map where the built-in labels are already a natural fit. Custom labels and titles refine reader wording only and never alter underlying node/edge semantics.
 - Choose one primary authored language from an explicit user choice; otherwise follow the request or conversation's dominant language. `meta.locale` controls only renderer-owned Viewer UI: use `"en"` or `"zh-CN"` for the corresponding supported primary language. For every other language, omit `meta.locale` and explicitly disclose that the fixed Viewer UI and `<html lang>` fall back to English. The renderer never translates authored content. See `references/authoring-contract.md` for details.
 - Preserve exact product names, code identifiers, commands, protocols, API paths, and environment names. They may remain English inside localized copy, but never justify leaving the surrounding explanatory prose in another language.
 - Brand identity is optional and explicit. Put a canonical built-in ID in `brand` when the node names that real product. If no preset matches and the user supplied the official HTTP(S) URL, first run `node bin/archify.mjs brands capture "<url>" --json`, then author the returned digest-pinned `brand` object. Render and validate never perform an unpinned capture. Otherwise omit `brand`. Never infer a brand from a vague role such as "database", and never let a badge replace the semantic `type`, label, or relationship facts.

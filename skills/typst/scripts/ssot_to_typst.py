@@ -2019,12 +2019,48 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             quote_indent = len(line) - len(line.lstrip())
             curr_quote = []
             while i < len(clean_lines) and clean_lines[i].strip().startswith(">"):
-                q_line = clean_lines[i].strip()[1:].strip()
+                raw_q = clean_lines[i].lstrip()
+                q_line = raw_q[2:].rstrip("\r\n") if raw_q.startswith("> ") else raw_q[1:].rstrip("\r\n")
                 curr_quote.append(q_line)
                 i += 1
 
+            def _format_quote_lines(q_lines):
+                out_blocks = []
+                in_q_code = False
+                q_code_buf = []
+                for ql in q_lines:
+                    ql_strip = ql.strip()
+                    if ql_strip.startswith("```"):
+                        if not in_q_code:
+                            in_q_code = True
+                            q_code_buf = [ql_strip]
+                        else:
+                            q_code_buf.append("```")
+                            out_blocks.append("\n".join(q_code_buf))
+                            in_q_code = False
+                            q_code_buf = []
+                        continue
+                    if in_q_code:
+                        q_code_buf.append(ql.rstrip())
+                        continue
+                    if not ql_strip:
+                        continue
+                    if re.match(r'^[\*\-]\s+', ql_strip):
+                        item_body = re.sub(r'^[\*\-]\s+', '', ql_strip)
+                        out_blocks.append(f"- {format_inline_markdown(item_body)}")
+                    elif re.match(r'^\d+\.\s+', ql_strip):
+                        m = re.match(r'^\d+\.\s+', ql_strip)
+                        item_body = ql_strip[len(m.group(0)):].strip()
+                        out_blocks.append(f"+ {format_inline_markdown(item_body)}")
+                    else:
+                        out_blocks.append(format_inline_markdown(ql_strip))
+                if in_q_code and q_code_buf:
+                    q_code_buf.append("```")
+                    out_blocks.append("\n".join(q_code_buf))
+                return "\n\n".join(out_blocks)
+
             # 检查首行是否是 GitHub Callout 标识符 [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]
-            callout_match = re.match(r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$', curr_quote[0], re.IGNORECASE) if curr_quote else None
+            callout_match = re.match(r'^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$', curr_quote[0].strip(), re.IGNORECASE) if curr_quote else None
             if callout_match:
                 c_type = callout_match.group(1).upper()
                 c_body_lines = curr_quote[1:]
@@ -2040,29 +2076,15 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 stroke_color, bg_color, default_title = c_configs.get(c_type, ("#0284c7", "#f0f9ff", "提示说明"))
                 
                 title_line = ""
-                content_lines = []
                 raw_c_lines = c_body_lines
-                if c_body_lines and c_body_lines[0].startswith("**") and c_body_lines[0].endswith("**"):
-                    title_line = c_body_lines[0][2:-2].strip()
+                first_c_strip = c_body_lines[0].strip() if c_body_lines else ""
+                if first_c_strip.startswith("**") and first_c_strip.endswith("**"):
+                    title_line = first_c_strip[2:-2].strip()
                     raw_c_lines = c_body_lines[1:]
                 else:
                     title_line = default_title
                 
-                for l in raw_c_lines:
-                    l_strip = l.strip()
-                    if not l_strip:
-                        continue
-                    if re.match(r'^[\*\-]\s+', l_strip):
-                        item_body = re.sub(r'^[\*\-]\s+', '', l_strip)
-                        content_lines.append(f"- {format_inline_markdown(item_body)}")
-                    elif re.match(r'^\d+\.\s+', l_strip):
-                        m = re.match(r'^\d+\.\s+', l_strip)
-                        item_body = l_strip[len(m.group(0)):].strip()
-                        content_lines.append(f"+ {format_inline_markdown(item_body)}")
-                    else:
-                        content_lines.append(format_inline_markdown(l_strip))
-                
-                body_joined = "\n\n".join(content_lines)
+                body_joined = _format_quote_lines(raw_c_lines)
                 typ_lines.append(f"""
 #block(
   width: 100%,
@@ -2084,21 +2106,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 continue
 
             # 普通引用块
-            formatted_quotes = []
-            for q in curr_quote:
-                q_strip = q.strip()
-                if not q_strip:
-                    continue
-                if re.match(r'^[\*\-]\s+', q_strip):
-                    item_body = re.sub(r'^[\*\-]\s+', '', q_strip)
-                    formatted_quotes.append(f"- {format_inline_markdown(item_body)}")
-                elif re.match(r'^\d+\.\s+', q_strip):
-                    m = re.match(r'^\d+\.\s+', q_strip)
-                    item_body = q_strip[len(m.group(0)):].strip()
-                    formatted_quotes.append(f"+ {format_inline_markdown(item_body)}")
-                else:
-                    formatted_quotes.append(format_inline_markdown(q_strip))
-            joined_quote = "\n\n".join(formatted_quotes)
+            joined_quote = _format_quote_lines(curr_quote)
             is_empty_quote = not joined_quote.strip()
             if quote_indent >= 2:
                 above_val = "0.3em" if is_empty_quote else "0.6em"

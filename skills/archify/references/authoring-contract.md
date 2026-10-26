@@ -24,15 +24,32 @@ The complete normative invariants live in the workflow renderer's
 
 ## Legend contract
 
-Omit `meta.legend` for the truthful default: `auto` lists only semantic kinds
-present in typed IR. Set `title` to override the localized default legend
-heading ("Legend" / "图例") with a bounded custom title (1-80 characters);
-the renderer dynamically measures title width to ensure collision-free clearance.
-Use `mode: "all"` for a renderer reference or `mode: "hidden"` to remove the
-full legend. Under `entries`, only keys listed by the selected mode schema are
-valid; each key accepts `label`, `visible`, or both. `visible: true` may
-show an unused supported convention, while `visible: false` hides it.
-`hidden` cannot be overridden.
+By default (`mode: "auto"`), the legend lists only semantic kinds present in
+typed IR. Whenever a diagram represents a domain-specific workflow, educational
+concept, AI/agent collaboration loop, algorithm pipeline, or business process
+where generic software-infrastructure labels (such as "Frontend / 前端",
+"Backend / 后端", "Database / 数据库", "Message Bus / 消息总线", or generic
+"Default / Emphasis") would feel mismatched, actively customize `meta.legend`
+so the legend text reflects the diagram's real content:
+
+- Set `title` to override the localized default legend heading ("Legend" / "图例")
+  with a bounded, context-specific title (1–80 characters, e.g. `"图例：协同排障角色"`);
+  the renderer dynamically measures title width to ensure collision-free clearance.
+- Under `entries`, configure `entries.<kind>.label` (1–80 characters) to rename
+  each used semantic kind into domain-accurate wording (for example, mapping
+  `frontend` to `"人类领航员 (Navigator)"`, `backend` to `"AI 驾驶员 (Driver)"`,
+  `security` to `"边界校验守卫"`).
+- Only keys listed by the selected mode schema are valid under `entries`:
+  - `architecture` / `workflow`: `frontend`, `backend`, `database`, `cloud`, `security`, `messagebus`, `external`
+  - `dataflow`: `default`, `emphasis`, `security`, `dashed`, `database`
+  - `sequence`: `default`, `emphasis`, `security`, `dashed`, `return`
+  - `lifecycle`: `start`, `active`, `waiting`, `decision`, `success`, `failure`, `neutral`, `external`
+- Each key accepts `label`, `visible`, or both. `visible: true` may show an
+  unused supported convention, while `visible: false` hides it.
+- Use `mode: "all"` for a full renderer reference or `mode: "hidden"` to remove
+  the entire legend (`hidden` cannot be overridden by entry visibility).
+- Omit `meta.legend` only when the default localized labels already match the
+  diagram's subject matter.
 
 A label override changes reader wording only. Never infer a kind from prose or
 use the legend to compensate for missing nodes, states, messages, or flows.
@@ -74,9 +91,10 @@ never permits authored copy to fall back to English. Do not silently substitute
 Keep exact product names, code identifiers, commands, protocols, API paths, and
 environment names intact. Those terms may remain English inside localized copy,
 but surrounding explanatory prose must still use the selected language.
-Renderer-owned default legend labels follow `meta.locale`; author a
-`meta.legend.entries.*.label` override only when the diagram needs different
-domain wording, and keep that authored override in the primary language.
+Renderer-owned default legend labels follow `meta.locale`; proactively author
+`meta.legend.title` and `meta.legend.entries.*.label` overrides whenever the
+diagram's domain content calls for specific terminology rather than generic IT
+component names, and keep those overrides in the primary language.
 
 ## Visual preset default
 
