@@ -35,7 +35,7 @@ TYPST_MATH_BUILTINS = {
     "sum", "prod", "product", "integral", "dif", "partial", "round", "floor", "ceil", "abs", "norm", "lr", "mid",
     "bold", "italic", "upright", "underline", "overline", "cal", "bb", "frak", "mono",
     "hat", "tilde", "dot", "ddot", "arrow", "vec", "macron", "top", "accent",
-    "in", "notin", "subset", "supset", "approx", "equiv", "propto", "quad", "succ", "prec",
+    "in", "notin", "subset", "supset", "approx", "equiv", "prop", "quad", "thin", "med", "thick", "wide", "succ", "prec",
     "and", "or", "not", "times", "plus", "minus", "div", "star",
     "NN", "ZZ", "QQ", "RR", "CC", "infinity",
     "alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "eta",
@@ -149,7 +149,9 @@ def convert_latex_math_to_typst(math_content: str) -> str:
     # 处理多行对齐环境 (aligned, align, split) 与换行符 \\ -> \
     raw = re.sub(r'\\begin\{(?:aligned|align\*?|split)\}', '', raw)
     raw = re.sub(r'\\end\{(?:aligned|align\*?|split)\}', '', raw)
-    raw = re.sub(r'\\\\', ' \\ \n', raw)
+    raw = re.sub(r'\\\\', '__TYPST_LINEBREAK__', raw)
+    raw = re.sub(r'\\ ', ' med ', raw)
+    raw = raw.replace('__TYPST_LINEBREAK__', ' \\ \n')
 
     raw = re.sub(r'\\text\{([^}]+)\}', lambda m: '"' + m.group(1).strip().replace('\\"', '"').replace('"', '\\"') + '"', raw)
     raw = re.sub(r'\\mathrm\{([^}]+)\}', lambda m: '"' + m.group(1).strip().replace('\\"', '"').replace('"', '\\"') + '"', raw)
@@ -183,8 +185,8 @@ def convert_latex_math_to_typst(math_content: str) -> str:
 
     raw = re.sub(r'\\quad(?![a-zA-Z])', ' quad ', raw)
     raw = re.sub(r'\\qquad(?![a-zA-Z])', ' quad quad ', raw)
-    raw = re.sub(r'\\,(?![a-zA-Z])', ' ', raw)
-    raw = re.sub(r'\\;(?![a-zA-Z])', ' ', raw)
+    raw = re.sub(r'\\,(?![a-zA-Z])', ' thin ', raw)
+    raw = re.sub(r'\\;(?![a-zA-Z])', ' med ', raw)
     raw = re.sub(r'h\(1em\)', ' quad ', raw)
     raw = re.sub(r'h\(2em\)', ' quad quad ', raw)
 
@@ -213,6 +215,7 @@ def convert_latex_math_to_typst(math_content: str) -> str:
         (r'\\neq(?![a-zA-Z])', '!='),
         (r'\\approx(?![a-zA-Z])', 'approx'),
         (r'\\equiv(?![a-zA-Z])', 'equiv'),
+        (r'\\propto(?![a-zA-Z])', 'prop'),
         (r'\\succ(?![a-zA-Z])', 'succ'),
         (r'\\prec(?![a-zA-Z])', 'prec'),
         (r'\\lceil', 'ceil('),
@@ -829,7 +832,323 @@ def parse_markdown_table_to_typst(table_text: str, caption: str = None, breakabl
     typ_table.append("]]")
     return "\n".join(typ_table)
 
-def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
+
+CN_NUM_MAP = {
+    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+    "十一": 11, "十二": 12, "十三": 13, "十四": 14, "十五": 15, "十六": 16,
+}
+
+
+def build_textbook_cover_typst(
+    metadata: dict,
+    raw_frontmatter: dict,
+    label_author: str,
+    label_institution: str,
+    label_date: str,
+) -> str:
+    """基于 .ssot.md YAML 元数据生成现代高校新形态教材级纯矢量 A4 封面页"""
+    raw_course = str(raw_frontmatter.get("course") or metadata.get("course") or "").strip()
+    chapter_val = str(
+        raw_frontmatter.get("chapter")
+        or raw_frontmatter.get("part")
+        or raw_frontmatter.get("module")
+        or ""
+    ).strip()
+    course_val = raw_course
+    if not chapter_val and "（" in raw_course and raw_course.endswith("）"):
+        c_main, c_sub = raw_course.split("（", 1)
+        course_val = c_main.strip()
+        chapter_val = c_sub[:-1].strip()
+
+    course_en_val = str(raw_frontmatter.get("course_en") or "").strip()
+    major_val = str(
+        raw_frontmatter.get("major")
+        or raw_frontmatter.get("program")
+        or ""
+    ).strip()
+    edition_tag = str(
+        raw_frontmatter.get("cover_tag")
+        or "本科专业核心课程系列讲义"
+    ).strip()
+
+    raw_title = str(metadata.get("title") or "").strip()
+    cn_badge = ""
+    en_badge = ""
+    core_title = raw_title
+    m_lec = re.match(r"^第\s*(\d+|[一二三四五六七八九十]+)\s*([讲章节课篇])\s*(.+)$", raw_title)
+    if m_lec:
+        num_token = m_lec.group(1).strip()
+        unit_char = m_lec.group(2).strip()
+        core_title = m_lec.group(3).strip()
+        cn_badge = f"第 {num_token} {unit_char}"
+        num_int = int(num_token) if num_token.isdigit() else CN_NUM_MAP.get(num_token, 0)
+        en_unit = (
+            "LECTURE" if unit_char in ("讲", "课")
+            else ("CHAPTER" if unit_char == "章" else "PART")
+        )
+        en_badge = f"{en_unit} {num_int:02d}" if num_int > 0 else en_unit
+
+    deck1 = ""
+    deck2 = core_title
+    if "：" in core_title:
+        p1, p2 = core_title.split("：", 1)
+        if 2 <= len(p1.strip()) <= 12 and p2.strip():
+            deck1 = p1.strip()
+            deck2 = p2.strip()
+    elif ": " in core_title:
+        p1, p2 = core_title.split(": ", 1)
+        if 2 <= len(p1.strip()) <= 16 and p2.strip():
+            deck1 = p1.strip()
+            deck2 = p2.strip()
+
+    raw_kw = str(metadata.get("keywords") or "").strip()
+    kw_pills = []
+    if raw_kw:
+        for item in re.split(r"[,，;；]", raw_kw):
+            t = item.strip()
+            if not t:
+                continue
+            if len(t) > 14 and "(" in t:
+                t = t.split("(", 1)[0].strip()
+            elif len(t) > 14 and "（" in t:
+                t = t.split("（", 1)[0].strip()
+            if t:
+                kw_pills.append(t)
+        kw_pills = kw_pills[:5]
+
+    inst_clean = str(metadata.get("institution") or "").strip()
+    author_clean = str(metadata.get("author") or "").strip()
+    date_clean = str(metadata.get("date") or "").strip()
+    subtitle_clean = str(metadata.get("subtitle") or "").strip()
+
+    overline_left = format_inline_markdown(inst_clean or "高校课程教学讲义")
+    overline_right = format_inline_markdown(edition_tag)
+
+    course_block_typ = ""
+    if course_val or chapter_val:
+        c_lines = []
+        if course_val:
+            c_lines.append(
+                f'      #text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 21pt, weight: "bold", tracking: 0.6pt, fill: rgb("#0f172a"))[{format_inline_markdown(course_val)}]'
+            )
+        if course_en_val:
+            c_lines.append(
+                f'      #v(4pt)\n      #text(font: ("Times New Roman", "PingFang SC"), size: 10.5pt, style: "italic", fill: rgb("#64748b"))[{format_inline_markdown(course_en_val)}]'
+            )
+        inner_course = "\n".join(c_lines)
+        chapter_pill_typ = ""
+        if chapter_val:
+            chapter_pill_typ = f"""
+    #v(11pt)
+    #box(
+      fill: rgb("#f0f9ff"),
+      stroke: 0.9pt + rgb("#7dd3fc"),
+      radius: 4pt,
+      inset: (x: 10pt, y: 5.5pt)
+    )[
+      #text(font: ("PingFang SC", "Heiti SC"), size: 8.8pt, weight: "bold", fill: rgb("#0284c7"))[课程章节]
+      #h(6pt)
+      #text(fill: rgb("#bae6fd"))[|]
+      #h(6pt)
+      #text(font: ("PingFang SC", "Heiti SC"), size: 10.2pt, weight: "bold", fill: rgb("#0369a1"))[{format_inline_markdown(chapter_val)}]
+    ]"""
+        course_block_typ = f"""
+    #block(
+      stroke: (left: 3.5pt + rgb("#0284c7")),
+      inset: (left: 11pt, y: 2pt)
+    )[
+{inner_course}
+    ]{chapter_pill_typ}"""
+
+    badge_row_typ = ""
+    if cn_badge:
+        badge_row_typ = f"""
+      #box(
+        fill: rgb("#0f172a"),
+        radius: 3.5pt,
+        inset: (x: 9pt, y: 4.5pt)
+      )[#text(font: ("PingFang SC", "Heiti SC"), size: 9.5pt, weight: "bold", fill: rgb("#ffffff"))[{format_inline_markdown(cn_badge)}]]
+      #h(8pt)
+      #text(font: ("Times New Roman", "PingFang SC"), size: 9.5pt, weight: "bold", tracking: 1.6pt, fill: rgb("#0284c7"))[{en_badge}]
+      #v(14pt)"""
+
+    if deck1:
+        title_hero_typ = f"""
+      #text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 31pt, weight: "bold", tracking: 1.2pt, fill: rgb("#0f172a"))[{format_inline_markdown(deck1)}]
+      #v(9pt)
+      #text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 19.5pt, weight: "bold", fill: rgb("#1e293b"))[{format_inline_markdown(deck2)}]"""
+    else:
+        title_hero_typ = f"""
+      #text(font: ("PingFang SC", "Heiti SC", "STHeiti"), size: 24pt, weight: "bold", fill: rgb("#0f172a"))[{format_inline_markdown(deck2)}]"""
+
+    subtitle_typ = ""
+    if subtitle_clean:
+        subtitle_typ = f"""
+      #v(13pt)
+      #text(font: ("PingFang SC", "Songti SC"), size: 12pt, fill: rgb("#475569"))[{format_inline_markdown(subtitle_clean)}]"""
+
+    kw_typ = ""
+    if kw_pills:
+        pill_boxes = "\n        #h(6pt)\n        ".join(
+            f'#box(fill: rgb("#ffffff"), stroke: 0.75pt + rgb("#cbd5e1"), radius: 11pt, inset: (x: 9pt, y: 3.8pt))[#text(font: ("PingFang SC", "Heiti SC"), size: 8.5pt, fill: rgb("#334155"))[{format_inline_markdown(k)}]]'
+            for k in kw_pills
+        )
+        kw_typ = f"""
+      #v(20pt)
+      #text(font: ("PingFang SC", "Heiti SC"), size: 8.5pt, weight: "bold", tracking: 0.8pt, fill: rgb("#64748b"))[核心概念导览]
+      #v(7pt)
+      #block(width: 100%)[
+        {pill_boxes}
+      ]"""
+
+    author_lbl_cover = str(raw_frontmatter.get("label_author") or "").strip() or (
+        "作者" if len(author_clean) <= 6 else label_author.replace(" ", "")
+    )
+    inst_lbl_cover = str(raw_frontmatter.get("label_institution") or "").strip() or "开课单位"
+    date_lbl_cover = str(raw_frontmatter.get("label_date") or "").strip() or "授课学期"
+    major_lbl_cover = str(raw_frontmatter.get("label_major") or "").strip() or "面向专业"
+
+    if major_val:
+        colophon_grid_typ = f"""
+        #grid(
+          columns: (1fr, 1.25fr),
+          column-gutter: 20pt,
+          row-gutter: 11pt,
+          [
+            #text(font: ("PingFang SC", "Heiti SC"), size: 8.2pt, fill: rgb("#64748b"))[{format_inline_markdown(author_lbl_cover)}]\\
+            #v(2.5pt)
+            #text(font: ("PingFang SC", "Heiti SC"), size: 11pt, weight: "bold", fill: rgb("#0f172a"))[{format_inline_markdown(author_clean)}]
+          ],
+          [
+            #text(font: ("PingFang SC", "Heiti SC"), size: 8.2pt, fill: rgb("#64748b"))[{format_inline_markdown(inst_lbl_cover)}]\\
+            #v(2.5pt)
+            #text(font: ("PingFang SC", "Heiti SC"), size: 10pt, weight: "medium", fill: rgb("#0f172a"))[{format_inline_markdown(inst_clean)}]
+          ],
+          [
+            #text(font: ("PingFang SC", "Heiti SC"), size: 8.2pt, fill: rgb("#64748b"))[{format_inline_markdown(date_lbl_cover)}]\\
+            #v(2.5pt)
+            #text(font: ("PingFang SC", "Heiti SC"), size: 10pt, weight: "medium", fill: rgb("#0f172a"))[{format_inline_markdown(date_clean)}]
+          ],
+          [
+            #text(font: ("PingFang SC", "Heiti SC"), size: 8.2pt, fill: rgb("#64748b"))[{format_inline_markdown(major_lbl_cover)}]\\
+            #v(2.5pt)
+            #text(font: ("PingFang SC", "Heiti SC"), size: 10pt, weight: "medium", fill: rgb("#0f172a"))[{format_inline_markdown(major_val)}]
+          ],
+        )"""
+    else:
+        colophon_grid_typ = f"""
+        #grid(
+          columns: (1.1fr, 1.5fr, 0.9fr),
+          column-gutter: 16pt,
+          [
+            #text(font: ("PingFang SC", "Heiti SC"), size: 8.2pt, fill: rgb("#64748b"))[{format_inline_markdown(author_lbl_cover)}]\\
+            #v(2.5pt)
+            #text(font: ("PingFang SC", "Heiti SC"), size: 10.5pt, weight: "bold", fill: rgb("#0f172a"))[{format_inline_markdown(author_clean)}]
+          ],
+          [
+            #text(font: ("PingFang SC", "Heiti SC"), size: 8.2pt, fill: rgb("#64748b"))[{format_inline_markdown(inst_lbl_cover)}]\\
+            #v(2.5pt)
+            #text(font: ("PingFang SC", "Heiti SC"), size: 10pt, weight: "medium", fill: rgb("#0f172a"))[{format_inline_markdown(inst_clean)}]
+          ],
+          [
+            #text(font: ("PingFang SC", "Heiti SC"), size: 8.2pt, fill: rgb("#64748b"))[{format_inline_markdown(date_lbl_cover)}]\\
+            #v(2.5pt)
+            #text(font: ("PingFang SC", "Heiti SC"), size: 10pt, weight: "medium", fill: rgb("#0f172a"))[{format_inline_markdown(date_clean)}]
+          ],
+        )"""
+
+    return f"""
+// ==============================================================================
+// 独立教材矢量封面页 (Metadata-Driven Modern Academic Textbook Cover)
+// ==============================================================================
+#page(
+  paper: "a4",
+  margin: 0mm,
+  header: none,
+  footer: none,
+  fill: rgb("#fafcff"),
+)[
+  #set par(first-line-indent: 0em, justify: false, leading: 0.78em)
+
+  // 左侧双色学术书脊装饰带
+  #place(top + left, rect(width: 10.5mm, height: 100%, fill: rgb("#0f172a")))
+  #place(top + left, rect(width: 10.5mm, height: 72mm, fill: rgb("#0369a1")))
+  #place(top + left, dx: 12mm, rect(width: 1.8mm, height: 100%, fill: rgb("#0284c7")))
+
+  // 右上角极简软件工程拓扑几何纹理（置于顶部分割线下方右侧留白区，省墨纯矢量线条）
+  #place(top + right, dy: 30mm)[
+    #box(width: 78mm, height: 76mm)[
+      #place(top + right, dx: -12mm, dy: 6mm, circle(radius: 25mm, stroke: 0.7pt + rgb("#e0f2fe")))
+      #place(top + right, dx: -20mm, dy: 14mm, circle(radius: 15mm, stroke: 0.7pt + rgb("#bae6fd")))
+      #place(top + left, dx: 18mm, dy: 18mm, line(start: (0mm, 0mm), end: (34mm, 16mm), stroke: 0.75pt + rgb("#bae6fd")))
+      #place(top + left, dx: 52mm, dy: 34mm, line(start: (0mm, 0mm), end: (-15mm, 22mm), stroke: 0.75pt + rgb("#bae6fd")))
+      #place(top + left, dx: 16.5mm, dy: 16.5mm, circle(radius: 1.5mm, fill: rgb("#e0f2fe"), stroke: 0.8pt + rgb("#38bdf8")))
+      #place(top + left, dx: 50.5mm, dy: 32.5mm, circle(radius: 1.9mm, fill: rgb("#f0f9ff"), stroke: 0.9pt + rgb("#0284c7")))
+      #place(top + left, dx: 35.5mm, dy: 54.5mm, circle(radius: 1.4mm, fill: rgb("#e0f2fe"), stroke: 0.8pt + rgb("#38bdf8")))
+    ]
+  ]
+
+  // 封面三段式黄金比例版心
+  #pad(left: 28mm, right: 22mm, top: 22mm, bottom: 20mm)[
+    #grid(
+      columns: (1fr,),
+      rows: (auto, 1fr, auto),
+      // 1. 顶部院系眉标与课程大纲章节区
+      [
+        #grid(
+          columns: (1fr, auto),
+          align(left + horizon)[#text(font: ("PingFang SC", "Heiti SC"), size: 9pt, weight: "bold", tracking: 0.5pt, fill: rgb("#475569"))[{overline_left}]],
+          align(right + horizon)[#text(font: ("PingFang SC", "Heiti SC"), size: 8.8pt, fill: rgb("#64748b"))[{overline_right}]],
+        )
+        #v(5pt)
+        #line(length: 100%, stroke: 0.75pt + rgb("#cbd5e1"))
+        #v(14mm)
+        {course_block_typ}
+      ],
+
+      // 2. 中部核心讲次与主副标题视觉焦点区
+      align(left + horizon)[
+        #pad(bottom: 8mm)[
+          {badge_row_typ}
+          {title_hero_typ}
+          #v(14pt)
+          #stack(
+            dir: ltr,
+            line(length: 44mm, stroke: 2.4pt + rgb("#0284c7")),
+            line(length: 116mm, stroke: 0.75pt + rgb("#cbd5e1")),
+          )
+          {subtitle_typ}
+          {kw_typ}
+        ]
+      ],
+
+      // 3. 底部作者与出版级落款信息卡
+      [
+        #block(
+          width: 100%,
+          fill: rgb("#ffffff"),
+          stroke: (top: 2.2pt + rgb("#0f172a"), rest: 0.75pt + rgb("#cbd5e1")),
+          radius: (bottom: 5pt),
+          inset: (x: 16pt, y: 13pt),
+        )[
+          {colophon_grid_typ}
+        ]
+        #v(4mm)
+        #grid(
+          columns: (1fr, auto),
+          align(left)[#text(font: ("Times New Roman", "PingFang SC"), size: 7.8pt, tracking: 0.8pt, fill: rgb("#94a3b8"))[SINGLE SOURCE OF TRUTH (SSOT) CURRICULUM EDITION]],
+          align(right)[#text(font: ("PingFang SC", "Heiti SC"), size: 7.8pt, fill: rgb("#94a3b8"))[{format_inline_markdown(course_val or inst_clean)}]],
+        )
+      ],
+    )
+  ]
+  #counter(page).update(0)
+]
+"""
+
+
+def convert_ssot_to_typst(md_path: str, mode: str = "book", cover_override: bool = None) -> str:
     """核心转换函数：生成符合双面出版级调优规范或移动端自适应长图规范的 Typst 源码"""
     with open(md_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -1106,9 +1425,31 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         else:
             footer_left = f'#text(fill: rgb("#0f172a"), weight: "medium")[{class_val}]'
     elif matched_genre == "course":
-        # 教材/课程模式：页脚严格展示编写团队 (author)，绝不使用开课单位
-        author_val = metadata.get('author', '')
-        footer_left = f'#text("{author_val}")' if author_val else '#text("")'
+        # 教材/课程模式：优先展示“《课程名称》 · 章节名称”，不逐页印个人作者姓名
+        raw_course_ft = str(raw_frontmatter.get("course") or metadata.get("course") or "").strip()
+        raw_chapter_ft = str(
+            raw_frontmatter.get("chapter")
+            or raw_frontmatter.get("part")
+            or raw_frontmatter.get("module")
+            or ""
+        ).strip()
+        if raw_course_ft:
+            course_book = raw_course_ft if raw_course_ft.startswith("《") else f"《{raw_course_ft}》"
+            if raw_chapter_ft:
+                chap_norm = (
+                    raw_chapter_ft.replace(" · ", "：")
+                    if (" · " in raw_chapter_ft and "：" not in raw_chapter_ft)
+                    else raw_chapter_ft
+                )
+                footer_str = f"{course_book} · {chap_norm}"
+            else:
+                footer_str = course_book
+            footer_str_esc = footer_str.replace("\\", "\\\\").replace('"', '\\"')
+            footer_left = f'#text("{footer_str_esc}")'
+        else:
+            author_val = str(metadata.get('author', '')).strip()
+            author_esc = author_val.replace("\\", "\\\\").replace('"', '\\"')
+            footer_left = f'#text("{author_esc}")' if ("团队" in author_val or "组" in author_val) else '#text("")'
     else:
         footer_left = f'#text("{inst_val}")' if inst_val else '#text("")'
     # 智能断行处理编制团队与研发机构
@@ -1227,8 +1568,10 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 )
 #show list: set block(above: 0.85em, below: 0.85em)
 #show enum: set block(above: 0.85em, below: 0.85em)
+#show list: set par(first-line-indent: (amount: 0em, all: true))
+#show enum: set par(first-line-indent: (amount: 0em, all: true))
 
-// 列表首行对齐：第一级统一缩进 2em，子列表由 Typst 原生语法自然对齐// 列表首行对齐：第一级统一缩进 2em，子列表由 Typst 原生语法自然对齐""")
+// 列表首行对齐：第一级统一缩进 2em，子列表由 Typst 原生语法自然对齐""")
 
     typ_lines.append(f"""
 // 图表原生编号样式优化（去除默认额外 supplement）
@@ -1308,7 +1651,30 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
 
 // 5 级标题专用于具名锚点（如参考文献、词条等），不增加额外间距，完全继承正文排版，且不计入目录大纲
 #show heading.where(level: 5): it => block(spacing: 0.7em)[#it.body]
+""")
 
+    # 按需渲染独立教材矢量封面页（仅在非长图模式下生效，保持旧文档向后兼容）
+    raw_cover_flag = raw_frontmatter.get("cover", False)
+    if cover_override is not None:
+        enable_cover = bool(cover_override) and (mode != "long")
+    else:
+        enable_cover = (mode != "long") and (
+            raw_cover_flag is True
+            or (isinstance(raw_cover_flag, str) and raw_cover_flag.strip().lower() not in ("", "false", "0", "no", "none"))
+        )
+
+    if enable_cover:
+        typ_lines.append(
+            build_textbook_cover_typst(
+                metadata=metadata,
+                raw_frontmatter=raw_frontmatter,
+                label_author=label_author,
+                label_institution=label_institution,
+                label_date=label_date,
+            )
+        )
+
+    typ_lines.append(f"""
 // 核心大标题与元数据
 #align(center)[
   #block(width: 100%)[
@@ -1404,7 +1770,26 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     next_table_breakable = None
     next_table_compact = False
     in_landscape_block = False
+    in_bib_section = False
     ref_buffer = []
+
+    def is_bibliography_heading(text: str) -> bool:
+        t = re.sub(
+            r'^(?:(?:第[一二三四五六七八九十\d]+[章节部分篇]|[一二三四五六七八九十]+|\d+(?:\.\d+)*)[、.：\s]+)?',
+            '',
+            text.strip(),
+        )
+        return bool(
+            re.match(
+                r'^(?:主要|核心)?(?:参考文献|参考书目|References|Bibliography)(?:\s*(?:[（(][^）)]*[)）]|与(?:延伸阅读|参考资料|资料来源)))?$',
+                t,
+                re.IGNORECASE,
+            )
+        )
+
+    restore_body_indent_typ = """#set par(first-line-indent: (amount: 2em, all: true))
+#set list(indent: 2em, body-indent: 0.5em, spacing: 0.85em)
+#set enum(indent: 2em, body-indent: 0.5em, spacing: 0.85em, full: true, numbering: (..args) => { let pos = args.pos(); if pos.len() == 1 { str(pos.first()) + "." } else { "(" + str(pos.last()) + ")" } })"""
 
     def flush_references():
         nonlocal ref_buffer
@@ -2007,10 +2392,15 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 sec_no = m_sec.group(1).replace(".", "-")
                 anchor_label = f" <sec-{sec_no}>"
 
-            if "参考文献" in title_text or "References" in title_text:
+            if is_bibliography_heading(title_text):
+                in_bib_section = True
                 typ_lines.append(f"= {formatted_title}{anchor_label}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
             else:
-                typ_lines.append(f"= {formatted_title}{anchor_label}")
+                if in_bib_section:
+                    in_bib_section = False
+                    typ_lines.append(f"{restore_body_indent_typ}\n= {formatted_title}{anchor_label}")
+                else:
+                    typ_lines.append(f"= {formatted_title}{anchor_label}")
             i += 1
             continue
         
@@ -2084,7 +2474,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 else:
                     title_line = default_title
                 
-                body_joined = _format_quote_lines(raw_c_lines)
+                body_joined = _format_quote_lines(raw_c_lines).replace("\n", "\n    ")
                 typ_lines.append(f"""
 #block(
   width: 100%,
@@ -2100,7 +2490,9 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   #set enum(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
   #text(font: ("PingFang SC", "Heiti SC"), weight: "bold", size: 10pt, fill: rgb("{stroke_color}"))[{title_line}]
   #v(3pt)
-  #text(size: 9.5pt)[{body_joined}]
+  #text(size: 9.5pt)[
+    {body_joined}
+  ]
 ]
 """)
                 continue
@@ -2112,6 +2504,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 above_val = "0.3em" if is_empty_quote else "0.6em"
                 below_val = "0.4em" if is_empty_quote else "0.8em"
                 inset_y = "4pt" if is_empty_quote else "7pt"
+                indented_quote = joined_quote.replace("\n", "\n    ")
                 typ_lines.append(f"""
 #pad(left: 2em)[
   #block(
@@ -2126,7 +2519,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
     #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
     #set list(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
     #set enum(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
-    {joined_quote}
+    {indented_quote}
   ]
 ]
 """)
@@ -2134,6 +2527,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 above_val = "4pt" if is_empty_quote else "8pt"
                 below_val = "5pt" if is_empty_quote else "10pt"
                 inset_y = "5pt" if is_empty_quote else "8pt"
+                indented_quote = joined_quote.replace("\n", "\n  ")
                 typ_lines.append(f"""
 #block(
   width: 100%,
@@ -2147,7 +2541,7 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
   #set par(first-line-indent: (amount: 0em, all: true), leading: 0.7em)
   #set list(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
   #set enum(indent: 0em, body-indent: 0.5em, spacing: 0.6em)
-  {joined_quote}
+  {indented_quote}
 ]
 """)
             continue
@@ -2156,10 +2550,15 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
             section_list_counter = 0
             sub_title = stripped[4:].strip()
             formatted_sub = format_inline_markdown(sub_title)
-            if "参考文献" in sub_title or "References" in sub_title:
+            if is_bibliography_heading(sub_title):
+                in_bib_section = True
                 typ_lines.append(f"== {formatted_sub}\n#set enum(indent: 0em, body-indent: 0.5em, spacing: 0.7em, numbering: \"[1]\")\n#set list(indent: 0em, body-indent: 0.5em, spacing: 0.7em)\n#set par(first-line-indent: 0em)")
             else:
-                typ_lines.append(f"== {formatted_sub}")
+                if in_bib_section:
+                    in_bib_section = False
+                    typ_lines.append(f"{restore_body_indent_typ}\n== {formatted_sub}")
+                else:
+                    typ_lines.append(f"== {formatted_sub}")
             i += 1
             continue
         elif stripped.startswith("#### "):
@@ -2366,7 +2765,14 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
         if indent >= 2:
             m_sub_num = re.match(r'^\d+\.\s+', stripped)
             m_sub_bullet = re.match(r'^[\*\-]\s+', stripped)
-            prefix = "    " if indent >= 4 else "  "
+            if indent >= 9:
+                prefix = "        "
+            elif indent >= 6:
+                prefix = "      "
+            elif indent >= 4:
+                prefix = "    "
+            else:
+                prefix = "  "
             if m_sub_num:
                 item_body = stripped[len(m_sub_num.group(0)):].strip()
                 typ_lines.append(f"{prefix}+ {format_inline_markdown(item_body)}")
@@ -2378,8 +2784,8 @@ def convert_ssot_to_typst(md_path: str, mode: str = "book") -> str:
                 i += 1
                 continue
             else:
-                # 嵌套从属正文/代码：按标准段落输出，绝不包裹 block 或清零缩进
-                typ_lines.append(format_inline_markdown(stripped))
+                # 嵌套从属正文/代码：按当前缩进层级输出，绝不包裹 block 或清零缩进
+                typ_lines.append(f"{prefix}{format_inline_markdown(stripped)}")
                 i += 1
                 continue
         # 2. 第一级列表 (indent < 2)：原生流式排版，保留粗体行内语义，严禁强加换行
@@ -2487,6 +2893,8 @@ def main():
     parser.add_argument("--mode", "-m", choices=["book", "long"], default=None, help="排版模式:\n  book: A4 双面印刷册 (默认)\n  long: 移动端自适应无缝高清长图")
     parser.add_argument("--long", "-l", action="store_true", help="快捷开关: 直接启用移动端自适应长图模式")
     parser.add_argument("--ppi", type=int, default=200, help="输出长图或预览图片的渲染像素密度 (默认: 200 PPI)")
+    parser.add_argument("--cover", action="store_true", help="显式生成基于元数据的独立 A4 教材矢量封面页")
+    parser.add_argument("--no-cover", action="store_true", help="显式禁用独立封面页（覆盖 YAML 中的 cover: true）")
 
     args = parser.parse_args()
 
@@ -2530,9 +2938,15 @@ def main():
     else:
         out_typ = out_target + ".typ"
 
+    cover_override = None
+    if args.no_cover:
+        cover_override = False
+    elif args.cover:
+        cover_override = True
+
     mode_label = "自适应无缝长图 (PNG)" if mode == "long" else "A4 双面出版册 (PDF)"
     print(f"📄 [SSOT-to-Typst] 正在解析: {in_md} (模式: {mode_label}) ...")
-    typst_code = convert_ssot_to_typst(in_md, mode=mode)
+    typst_code = convert_ssot_to_typst(in_md, mode=mode, cover_override=cover_override)
 
     with open(out_typ, "w", encoding="utf-8") as f:
         f.write(typst_code)
