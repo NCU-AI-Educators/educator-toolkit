@@ -15,6 +15,7 @@
 | **Typst** | [`skills/typst/`](./typst/) | 单一事实源 (SSOT) 出版级 PDF/长图编译器 | <ul><li>A4 双面印刷排版（对称书脊装订边距、奇偶动态页眉）</li><li>科技论文三线表排版引擎</li><li>LaTeX 数学公式与变量双引号保护</li><li>集成 Kroki 多引擎图表编译（默认公共服务开箱即用）与原生矢量图嵌入</li></ul> |
 | **Docx** | [`skills/docx/`](./docx/) | 单一事实源 (SSOT) 出版级 Word (`.docx`) 编译器 | <ul><li>A4 标准页面、动态页眉与页脚原生 `PAGE` 页码域</li><li>绑定 Word 原生 `Heading 1~3` 大纲层级，支持导航窗格与自动目录</li><li>中文正文 2em 首行缩进、五色 GitHub Callout 卡片、代码块卡片</li><li>“图下表上”防跨页撕裂、跨页自动重复表头的科技三线表与上标尾注文献</li></ul> |
 | **Markdown CJK Spacer** | [`skills/markdown-cjk-spacer/`](./markdown-cjk-spacer/) | 中文与行内格式串盘古之白自动补全引擎 | <ul><li>精准识别紧贴汉字的 `**加粗**`、`**“加粗引号”**`、`` `code` ``、`*斜体*`</li><li>词法 Token 判定机制，杜绝同一行多个加粗块的跨块倒置误匹配</li><li>围栏代码块（` ``` `）与数学公式块（`$$`）完全免疫保护</li><li>支持单文件或全项目递归扫描，具备预览与就地修改双模式</li></ul> |
+| **Lecture SSOT to Master** | [`skills/lecture-ssot-to-master/`](./lecture-ssot-to-master/) | 单一事实源 (`*.ssot.md`) 讲义后置五层精炼与多端衍生流水线 | <ul><li>从 `*.ssot.md` 自动执行去 AI 味净化、盘古之白与出版级 A4 PDF 编译</li><li>构建包含【正文、逐字稿、对白、自学解释、教学设计】五层结构的 `*.master.md` 与高密度学术 SVG 插图</li><li>内置双流编码容量预算与 Playwright 容器底部防截断门禁，一键衍生课堂演示 PPTX、学生自学 PDF 及学习通标准题库</li></ul> |
 
 ---
 

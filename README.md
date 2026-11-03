@@ -27,6 +27,7 @@
     *   **[typst](./skills/typst/README.md)**: 基于单一事实源 (SSOT) 哲学的学术教材与工业出版级 Typst/PDF 编译器。支持 A4 双面印刷装订排版、科技三线表与 Kroki 算力集成。
     *   **[docx](./skills/docx/README.md)**: 出版级 Microsoft Word (`.docx`) 编译器。支持 A4 页面规范、Word 原生导航大纲、中文 2em 首行缩进、五色 Callout 卡片、跨页重复表头的科技三线表与上标尾注文献。
     *   **[markdown-cjk-spacer](./skills/markdown-cjk-spacer/README.md)**: 中文字符与 Markdown 行内格式串（加粗、斜体、行内代码等）盘古之白空格自动补全引擎，内置跨加粗防倒置误伤与代码块保护。
+    *   **[lecture-ssot-to-master](./skills/lecture-ssot-to-master/SKILL.md)**: 基于 `*.ssot.md` 单一事实源讲义的后置主干流水线。自动清洗 SSOT 语态与格式、编译出版级 A4 双栏 PDF、构建五层结构（正文、逐字稿、对白、自学解释、教学设计）与高密度学术 SVG 插图，并一键衍生课堂演示 PPTX、学生自学讲义 PDF 及学习通导入格式练习题。
 
 ## 贡献指南
 欢迎各位老师提交 Pull Request 分享您的教学工具！
