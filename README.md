@@ -23,7 +23,8 @@
     *   `md_to_styled_html`: [Markdown 阅读体验优化工具](./md_to_styled_html/README_CN.md) (生成排版精美、支持自动滚动的独立 HTML)
 *   **🧠 Skills**: 专为 AI Coding Agent (Antigravity / Claude Code / Cursor 等) 打造的专业技能包。[查看总览说明](./skills/README.md)
     *   **[archify](./skills/archify/README.md)**: 现代系统架构、时序交互与工程图表可视化引擎。支持高维富交互 Web 探索与出版级纯净矢量（Clean SVG）导出。
-    *   **[textbook-svg](./skills/textbook-svg/README.md)**: 面向高校教材、课程讲义（SSOT Markdown）与深度研究报告的双轨制配图引擎。内置 Track A 极简纯 SVG 概念图（四大母版 + 印刷安全门禁）与 Track B 880px 黄金窄画布高密度“1+N 总分图组”（支持 DOM-to-Pure-SVG 纯矢量与 2x Retina PNG 双模导出，彻底解决复杂大图缩印后字号过小问题）。
+    *   **[textbook-svg](./skills/textbook-svg/README.md)**: 面向高校教材、课程讲义（SSOT Markdown）、深度研究报告与学术论文的 **三轨制（Tri-Track）** 配图引擎。内置 Track A 极简纯 SVG 概念图（四大母版 + 印刷安全门禁）、Track B 880px 黄金窄画布高密度“1+N 总分图组”（彻底解决复杂大图缩印后字号过小问题）与 **Track C 顶刊论文机理与架构矢量主图**（支持 DOM-to-Pure-SVG 纯矢量、原生数学公式、学术语义色板与 PDF 印刷字号门禁）。
+    *   **[figures4papers](./skills/figures4papers/README.md)**: 顶会/顶刊（*Nature Machine Intelligence* / *ICML* / *NeurIPS* / *CVPR*）学术论文定量实验数据科研制图技能（基于 Python/Matplotlib，内置动态紧凑缩放、独立图例画板、黑白打印安全纹理与版心字号门禁）。
     *   **[typst](./skills/typst/README.md)**: 基于单一事实源 (SSOT) 哲学的学术教材与工业出版级 Typst/PDF 编译器。支持 A4 双面印刷装订排版、科技三线表与 Kroki 算力集成。
     *   **[docx](./skills/docx/README.md)**: 出版级 Microsoft Word (`.docx`) 编译器。支持 A4 页面规范、Word 原生导航大纲、中文 2em 首行缩进、五色 Callout 卡片、跨页重复表头的科技三线表与上标尾注文献。
     *   **[markdown-cjk-spacer](./skills/markdown-cjk-spacer/README.md)**: 中文字符与 Markdown 行内格式串（加粗、斜体、行内代码等）盘古之白空格自动补全引擎，内置跨加粗防倒置误伤与代码块保护。
@@ -39,6 +40,10 @@
   <img src="assets/wechat_promo_card.png" alt="南昌大学 AIIA Lab 官方公众号" width="460">
 </p>
 
+## 致谢 (Acknowledgements)
+*   诚挚感谢 **刘晨博士（[Chen Liu](https://chenliu-1996.github.io/), Yale University）** 开源的 **[`ChenLiu-1996/figures4papers`](https://github.com/ChenLiu-1996/figures4papers)** 项目（涵盖 *Nature Machine Intelligence*、*ICML*、*NeurIPS*、*ECCV* 等顶刊顶会定量科研图表脚本、顶会语义色板与 `scientific-figure-making` 设计理论），为本工具箱的 [`skills/figures4papers`](./skills/figures4papers/README.md) 及 [`skills/textbook-svg`](./skills/textbook-svg/README.md) (Track C) 提供了宝贵的学术制图范式基础。
+*   感谢 **[`Cocoon-AI/architecture-diagram-generator`](https://github.com/Cocoon-AI/architecture-diagram-generator)** 开源项目为 [`skills/archify`](./skills/archify/README.md) 提供的上游架构可视化灵感基础。
+
 ## 协议
-本项目代码脚本采用 **AGPL v3** 协议。
-Prompt 文本与文档内容遵循 **CC BY-NC-SA 4.0** 协议。
+*   本项目自有代码脚本默认采用 **AGPL v3** 协议，Prompt 文本与文档内容遵循 **CC BY-NC-SA 4.0** 协议。
+*   [`skills/figures4papers/`](./skills/figures4papers/) 目录保留并遵循上游原项目的 **CC BY-NC 4.0** 协议（详见 [`skills/figures4papers/LICENSE`](./skills/figures4papers/LICENSE)）。
