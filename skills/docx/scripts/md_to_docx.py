@@ -110,6 +110,45 @@ LATEX_FALLBACK_SYMBOLS = {
 }
 
 
+PPR_ORDER = [
+    "pStyle", "keepNext", "keepLines", "pageBreakBefore", "framePr", "widowControl",
+    "numPr", "suppressLineNumbers", "pBdr", "shd", "tabs", "suppressAutoHyphens",
+    "kinsoku", "wordWrap", "overflowPunct", "topLinePunct", "autoSpaceDE", "autoSpaceDN",
+    "bidi", "adjustRightInd", "snapToGrid", "spacing", "ind", "contextualSpacing",
+    "mirrorIndents", "suppressOverlap", "jc", "textDirection", "textAlignment",
+    "textboxTightWrap", "outlineLvl", "divId", "cnfStyle", "rPr", "sectPr", "pPrChange",
+]
+
+RPR_ORDER = [
+    "rStyle", "rFonts", "b", "bCs", "i", "iCs", "caps", "smallCaps", "strike",
+    "dstrike", "outline", "shadow", "emboss", "imprint", "noProof", "snapToGrid",
+    "vanish", "webHidden", "color", "spacing", "w", "kern", "position", "sz",
+    "szCs", "highlight", "u", "effect", "bdr", "shd", "fitText", "vertAlign",
+    "rtl", "cs", "em", "lang", "eastAsianLayout", "specVanish", "oMath", "rPrChange",
+]
+
+TCPR_ORDER = [
+    "cnfStyle", "tcW", "gridSpan", "hMerge", "vMerge", "tcBorders", "shd", "noWrap",
+    "tcMar", "textDirection", "tcFitText", "vAlign", "hideMark", "headers", "cellIns",
+    "cellDel", "cellMerge", "tcPrChange",
+]
+
+
+def _reorder_w_children(parent_el, order_list):
+    """Ensure child elements of a WordprocessingML complex type strictly follow ECMA-376 xsd:sequence order."""
+    rank = {name: idx for idx, name in enumerate(order_list)}
+    children = list(parent_el)
+    sorted_children = sorted(
+        enumerate(children),
+        key=lambda item: (rank.get(etree.QName(item[1]).localname, 999), item[0]),
+    )
+    if [c for _, c in sorted_children] != children:
+        for c in children:
+            parent_el.remove(c)
+        for _, c in sorted_children:
+            parent_el.append(c)
+
+
 def set_east_asian_font(run, ascii_font="Times New Roman", east_asian_font="宋体"):
     run.font.name = ascii_font
     rPr = run._element.get_or_add_rPr()
@@ -120,12 +159,14 @@ def set_east_asian_font(run, ascii_font="Times New Roman", east_asian_font="宋�
     rFonts.set(qn("w:ascii"), ascii_font)
     rFonts.set(qn("w:hAnsi"), ascii_font)
     rFonts.set(qn("w:eastAsia"), east_asian_font)
+    _reorder_w_children(rPr, RPR_ORDER)
 
 
 def set_run_shading(run, fill_hex="F1F5F9"):
     rPr = run._element.get_or_add_rPr()
     shd = parse_xml(f'<w:shd {nsdecls("w")} w:val="clear" w:color="auto" w:fill="{fill_hex}"/>')
     rPr.append(shd)
+    _reorder_w_children(rPr, RPR_ORDER)
 
 
 def set_paragraph_border(paragraph, **kwargs):
@@ -134,7 +175,10 @@ def set_paragraph_border(paragraph, **kwargs):
     if pBdr is None:
         pBdr = OxmlElement("w:pBdr")
         pPr.append(pBdr)
-    for edge, spec in kwargs.items():
+    for edge in ("top", "left", "bottom", "right", "between", "bar"):
+        if edge not in kwargs:
+            continue
+        spec = kwargs[edge]
         edge_el = pBdr.find(qn(f"w:{edge}"))
         if edge_el is None:
             edge_el = OxmlElement(f"w:{edge}")
@@ -143,6 +187,8 @@ def set_paragraph_border(paragraph, **kwargs):
         edge_el.set(qn("w:sz"), str(spec.get("sz", 4)))
         edge_el.set(qn("w:space"), str(spec.get("space", 4)))
         edge_el.set(qn("w:color"), spec.get("color", "auto"))
+    _reorder_w_children(pBdr, ["top", "left", "bottom", "right", "between", "bar"])
+    _reorder_w_children(pPr, PPR_ORDER)
 
 
 def set_cell_shading(cell, fill_hex):
@@ -152,6 +198,7 @@ def set_cell_shading(cell, fill_hex):
         tcPr.remove(old_shd)
     shd = parse_xml(f'<w:shd {nsdecls("w")} w:val="clear" w:color="auto" w:fill="{fill_hex}"/>')
     tcPr.append(shd)
+    _reorder_w_children(tcPr, TCPR_ORDER)
 
 
 def set_cell_margins(cell, top=110, bottom=110, left=130, right=130):
@@ -160,12 +207,14 @@ def set_cell_margins(cell, top=110, bottom=110, left=130, right=130):
     if old_mar is not None:
         tcPr.remove(old_mar)
     tcMar = OxmlElement("w:tcMar")
-    for m, val in [("top", top), ("bottom", bottom), ("left", left), ("right", right)]:
+    # ECMA-376 CT_TcMar sequence: top -> start -> left -> bottom -> end -> right
+    for m, val in [("top", top), ("left", left), ("bottom", bottom), ("right", right)]:
         node = OxmlElement(f"w:{m}")
         node.set(qn("w:w"), str(val))
         node.set(qn("w:type"), "dxa")
         tcMar.append(node)
     tcPr.append(tcMar)
+    _reorder_w_children(tcPr, TCPR_ORDER)
 
 
 def set_cell_borders(cell, **kwargs):
@@ -175,20 +224,29 @@ def set_cell_borders(cell, **kwargs):
         tcPr.remove(tcBorders)
     tcBorders = OxmlElement("w:tcBorders")
     tcPr.append(tcBorders)
-    for edge, spec in kwargs.items():
+    # ECMA-376 CT_TcBorders sequence: top -> start -> left -> bottom -> end -> right -> insideH -> insideV
+    for edge in ("top", "start", "left", "bottom", "end", "right", "insideH", "insideV", "tl2br", "tr2bl"):
+        if edge not in kwargs:
+            continue
+        spec = kwargs[edge]
         edge_el = OxmlElement(f"w:{edge}")
         edge_el.set(qn("w:val"), spec.get("val", "single"))
         edge_el.set(qn("w:sz"), str(spec.get("sz", 4)))
         edge_el.set(qn("w:space"), "0")
         edge_el.set(qn("w:color"), spec.get("color", "auto"))
         tcBorders.append(edge_el)
+    _reorder_w_children(tcPr, TCPR_ORDER)
 
 
 def set_row_cant_split_and_header(row, is_header=False):
     trPr = row._tr.get_or_add_trPr()
     if is_header:
-        trPr.append(OxmlElement("w:tblHeader"))
-        trPr.append(OxmlElement("w:cantSplit"))
+        # ECMA-376 CT_TrPrBase sequence: cantSplit -> trHeight -> tblHeader
+        if trPr.find(qn("w:cantSplit")) is None:
+            trPr.append(OxmlElement("w:cantSplit"))
+        if trPr.find(qn("w:tblHeader")) is None:
+            trPr.append(OxmlElement("w:tblHeader"))
+        _reorder_w_children(trPr, ["cnfStyle", "divId", "gridBefore", "gridAfter", "wBefore", "wAfter", "cantSplit", "trHeight", "tblHeader", "tblCellSpacing", "jc", "hidden"])
 
 
 def enforce_table_fixed_widths(tbl, col_widths_mm):
@@ -277,20 +335,70 @@ def build_omml_map(md_text: str) -> dict:
 
 
 def make_styled_omath(omath_template, size_pt=10.5, color_hex="0F172A"):
-    """Clone an <m:oMath> element and apply Cambria Math font & target size to all <m:r> runs."""
+    """Clone an <m:oMath> element, upgrade stretchy underbrace/overbrace to <m:groupChr>, and apply Cambria Math font."""
     omath = copy.deepcopy(omath_template)
     half_pts = str(int(round(size_pt * 2)))
+
+    # Upgrade Pandoc's <m:limLow>/<m:limUpp> with literal ⏟ (U+23DF) / ⏞ (U+23DE) to ECMA-376 <m:groupChr>
+    for tag_name, brace_char, pos_val, vjc_val in [
+        ("limLow", "\u23df", "bot", "top"),
+        ("limUpp", "\u23de", "top", "bot"),
+    ]:
+        for lim_node in list(omath.findall(f".//{{{M_NS}}}{tag_name}")):
+            e_node = lim_node.find(f"{{{M_NS}}}e")
+            lim_child = lim_node.find(f"{{{M_NS}}}lim")
+            if e_node is None or lim_child is None:
+                continue
+            lim_text = "".join(t.text or "" for t in lim_child.findall(f".//{{{M_NS}}}t")).strip()
+            if lim_text == brace_char:
+                lim_node.tag = f"{{{M_NS}}}groupChr"
+                lim_node.remove(lim_child)
+                g_pr = etree.Element(f"{{{M_NS}}}groupChrPr")
+                chr_el = etree.SubElement(g_pr, f"{{{M_NS}}}chr")
+                chr_el.set(f"{{{M_NS}}}val", brace_char)
+                pos_el = etree.SubElement(g_pr, f"{{{M_NS}}}pos")
+                pos_el.set(f"{{{M_NS}}}val", pos_val)
+                vjc_el = etree.SubElement(g_pr, f"{{{M_NS}}}vertJc")
+                vjc_el.set(f"{{{M_NS}}}val", vjc_val)
+                ctrl_pr = etree.SubElement(g_pr, f"{{{M_NS}}}ctrlPr")
+                r_pr = etree.SubElement(ctrl_pr, f"{{{W_NS}}}rPr")
+                r_fonts = etree.SubElement(r_pr, f"{{{W_NS}}}rFonts")
+                r_fonts.set(f"{{{W_NS}}}ascii", "Cambria Math")
+                r_fonts.set(f"{{{W_NS}}}hAnsi", "Cambria Math")
+                col_el = etree.SubElement(r_pr, f"{{{W_NS}}}color")
+                col_el.set(f"{{{W_NS}}}val", color_hex)
+                sz_el = etree.SubElement(r_pr, f"{{{W_NS}}}sz")
+                sz_el.set(f"{{{W_NS}}}val", half_pts)
+                sz_cs_el = etree.SubElement(r_pr, f"{{{W_NS}}}szCs")
+                sz_cs_el.set(f"{{{W_NS}}}val", half_pts)
+                lim_node.insert(0, g_pr)
+
     for mr in omath.findall(f".//{{{M_NS}}}r"):
+        m_rPr = mr.find(f"{{{M_NS}}}rPr")
+        if m_rPr is not None and m_rPr.find(f"{{{M_NS}}}nor") is not None:
+            # ECMA-376 shared-math.xsd CT_RPR: <m:nor> and <m:scr>/<m:sty> are mutually exclusive (<xsd:choice>)
+            for excl_tag in ("scr", "sty"):
+                bad_el = m_rPr.find(f"{{{M_NS}}}{excl_tag}")
+                if bad_el is not None:
+                    m_rPr.remove(bad_el)
         rPr = mr.find(f"{{{W_NS}}}rPr")
         if rPr is None:
             rPr = etree.Element(f"{{{W_NS}}}rPr")
-            mr.insert(0, rPr)
+            if m_rPr is not None:
+                mr.insert(list(mr).index(m_rPr) + 1, rPr)
+            else:
+                mr.insert(0, rPr)
         rFonts = rPr.find(f"{{{W_NS}}}rFonts")
         if rFonts is None:
             rFonts = etree.SubElement(rPr, f"{{{W_NS}}}rFonts")
         rFonts.set(f"{{{W_NS}}}ascii", "Cambria Math")
         rFonts.set(f"{{{W_NS}}}hAnsi", "Cambria Math")
         rFonts.set(f"{{{W_NS}}}eastAsia", "宋体")
+
+        color = rPr.find(f"{{{W_NS}}}color")
+        if color is None:
+            color = etree.SubElement(rPr, f"{{{W_NS}}}color")
+        color.set(f"{{{W_NS}}}val", color_hex)
 
         sz = rPr.find(f"{{{W_NS}}}sz")
         if sz is None:
@@ -302,10 +410,7 @@ def make_styled_omath(omath_template, size_pt=10.5, color_hex="0F172A"):
             szCs = etree.SubElement(rPr, f"{{{W_NS}}}szCs")
         szCs.set(f"{{{W_NS}}}val", half_pts)
 
-        color = rPr.find(f"{{{W_NS}}}color")
-        if color is None:
-            color = etree.SubElement(rPr, f"{{{W_NS}}}color")
-        color.set(f"{{{W_NS}}}val", color_hex)
+        _reorder_w_children(rPr, RPR_ORDER)
     return omath
 
 
@@ -415,12 +520,14 @@ def add_rich_text(
     text = re.sub(r"\[([^\^\]]+)\]\(([^)]+)\)", repl_link, text)
 
     token_pattern = re.compile(
-        r"(\*\*(?!\s)[^*\n]+?(?<!\s)\*\*|`+[^`\n]+`+|\$\$[^$\n]+\$\$|(?<!\$)\$(?!\$)[^$\n]+?(?<!\$)\$(?!\$)|\[\^\d+\]|(?<!\*)\*(?!\s|\*)[^*\n]+?(?<!\s|\*)\*(?!\*))"
+        r"(\*\*(?!\s)[^*\n]+?(?<!\s)\*\*[：:；;，,。.！!？?、）》”’】]*|`+[^`\n]+`+[：:；;，,。.！!？?、）》”’】]*|\$\$[^$\n]+\$\$|(?<!\$)\$(?!\$)[^$\n]+?(?<!\$)\$(?!\$)[：:；;，,。.！!？?、]*|\[\^\d+\]|(?<!\*)\*(?!\s|\*)[^*\n]+?(?<!\s|\*)\*(?!\*)[：:；;，,。.！!？?、）》”’】]*)"
     )
     pos = 0
     for m in token_pattern.finditer(text):
         if m.start() > pos:
             plain = text[pos : m.start()]
+            if pos > 0 and re.match(r"^[：:；;，,。.！!？?、）》”’】]", plain):
+                plain = "\u2060" + plain
             run = paragraph.add_run(plain)
             set_east_asian_font(
                 run,
@@ -432,8 +539,21 @@ def add_rich_text(
             run.bold = base_bold
 
         token = m.group(0)
+        trail_m = re.search(r"([：:；;，,。.！!？?、）》”’】]+)$", token)
+        trail_punct = ""
+        if trail_m and not (token.startswith("$$") and token.endswith("$$")) and not token.startswith("[^"):
+            core_candidate = token[: trail_m.start()]
+            if (
+                (core_candidate.startswith("**") and core_candidate.endswith("**"))
+                or (core_candidate.startswith("`") and core_candidate.endswith("`"))
+                or (core_candidate.startswith("$") and core_candidate.endswith("$"))
+                or (core_candidate.startswith("*") and core_candidate.endswith("*"))
+            ):
+                token = core_candidate
+                trail_punct = trail_m.group(1)
+
         if token.startswith("**") and token.endswith("**"):
-            inner = token[2:-2]
+            inner = token[2:-2] + trail_punct
             add_rich_text(
                 paragraph,
                 inner,
@@ -450,11 +570,22 @@ def add_rich_text(
             latex_inner = token.strip("$").strip()
             if latex_inner in omml_map:
                 omath_el = make_styled_omath(omml_map[latex_inner], size_pt=base_size_pt)
+                if trail_punct:
+                    # Append trailing punctuation inside the last <m:t> of <m:oMath> so Word never breaks before it
+                    m_texts = omath_el.findall(".//" + qn("m:t"))
+                    if m_texts:
+                        m_texts[-1].text = (m_texts[-1].text or "") + trail_punct
+                        trail_punct = ""
                 paragraph._p.append(omath_el)
+                if trail_punct:
+                    pr = paragraph.add_run("\u2060" + trail_punct)
+                    set_east_asian_font(pr, ascii_font=ascii_font, east_asian_font=east_asian_font)
+                    pr.font.size = Pt(base_size_pt)
+                    pr.font.color.rgb = bold_color if base_bold else base_color
             else:
                 add_fallback_math_runs(
                     paragraph,
-                    latex_inner,
+                    latex_inner + trail_punct,
                     base_size_pt=base_size_pt,
                     base_color=bold_color if base_bold else base_color,
                     base_bold=base_bold,
@@ -467,6 +598,16 @@ def add_rich_text(
             r.font.color.rgb = RGBColor(0x03, 0x69, 0xA1) if not base_bold else bold_color
             r.bold = base_bold
             set_run_shading(r, "F1F5F9")
+            if trail_punct:
+                pr = paragraph.add_run("\u2060" + trail_punct)
+                set_east_asian_font(
+                    pr,
+                    ascii_font=ascii_font,
+                    east_asian_font=bold_east_asian_font if base_bold else east_asian_font,
+                )
+                pr.font.size = Pt(base_size_pt)
+                pr.font.color.rgb = bold_color if base_bold else base_color
+                pr.bold = base_bold
         elif token.startswith("[^") and token.endswith("]"):
             num = token[2:-1]
             cite_r = paragraph.add_run(f"[{num}]")
@@ -476,7 +617,7 @@ def add_rich_text(
             cite_r.font.color.rgb = RGBColor(0x03, 0x69, 0xA1)
             cite_r.bold = base_bold
         elif token.startswith("*") and token.endswith("*"):
-            inner = token[1:-1]
+            inner = token[1:-1] + trail_punct
             r = paragraph.add_run(inner)
             set_east_asian_font(r, ascii_font=ascii_font, east_asian_font=east_asian_font)
             r.font.size = Pt(base_size_pt)
@@ -487,6 +628,8 @@ def add_rich_text(
 
     if pos < len(text):
         plain = text[pos:]
+        if pos > 0 and re.match(r"^[：:；;，,。.！!？?、）》”’】]", plain):
+            plain = "\u2060" + plain
         run = paragraph.add_run(plain)
         set_east_asian_font(
             run,
@@ -696,6 +839,35 @@ def build_docx(md_path: str, docx_path: str, custom_header: str = None, indent_b
     normal_rFonts.set(qn("w:hAnsi"), "Times New Roman")
     normal_rFonts.set(qn("w:eastAsia"), "宋体")
 
+    # Enable Chinese punctuation kinsoku (禁止冒号、句号、逗号等出现在行首，禁止前括号出现在行尾)
+    normal_pPr = normal_style.element.get_or_add_pPr()
+    for tag_name in ("w:kinsoku", "w:wordWrap", "w:overflowPunct"):
+        if normal_pPr.find(qn(tag_name)) is None:
+            el = OxmlElement(tag_name)
+            el.set(qn("w:val"), "1")
+            normal_pPr.append(el)
+    _reorder_w_children(normal_pPr, PPR_ORDER)
+
+    settings_el = doc.settings.element
+    zoom_el = settings_el.find(qn("w:zoom"))
+    if zoom_el is not None and zoom_el.get(qn("w:percent")) is None:
+        zoom_el.set(qn("w:percent"), "100")
+    anchor_el = settings_el.find(qn("w:savePreviewPicture"))
+    if anchor_el is None:
+        anchor_el = settings_el.find(qn("w:compat"))
+    insert_idx = list(settings_el).index(anchor_el) if anchor_el is not None else len(settings_el)
+    if settings_el.find(qn("w:noLineBreaksAfter")) is None:
+        nlb_after = OxmlElement("w:noLineBreaksAfter")
+        nlb_after.set(qn("w:lang"), "zh-CN")
+        nlb_after.set(qn("w:val"), "([{·‘“〈《「『【〔〖（．［｛￡￥")
+        settings_el.insert(insert_idx, nlb_after)
+        insert_idx += 1
+    if settings_el.find(qn("w:noLineBreaksBefore")) is None:
+        nlb_before = OxmlElement("w:noLineBreaksBefore")
+        nlb_before.set(qn("w:lang"), "zh-CN")
+        nlb_before.set(qn("w:val"), "!),.:;?]}¨·ˇˉ―‖’”…∶、。〃々〉》」』】〕〗！＂＇），．：；？］｀｜｝～￠")
+        settings_el.insert(insert_idx, nlb_before)
+
     for h_name, h_size, h_color in [
         ("Heading 1", 13.5, RGBColor(0x1E, 0x3A, 0x8A)),
         ("Heading 2", 11.5, RGBColor(0x03, 0x69, 0xA1)),
@@ -844,17 +1016,46 @@ def build_docx(md_path: str, docx_path: str, custom_header: str = None, indent_b
         # 2. Document Title (# H1) with Typst 1.2pt bottom rule
         if line.startswith("# "):
             title_text = line[2:].strip()
+            # Support main title + subtitle split via <br>——, ——, or " — "
+            subtitle_text = None
+            if "<br>" in title_text:
+                parts = [pt.strip() for pt in title_text.split("<br>", 1)]
+                title_text, subtitle_text = parts[0], parts[1]
+            elif "——" in title_text:
+                parts = [pt.strip() for pt in title_text.split("——", 1)]
+                title_text, subtitle_text = parts[0], "——" + parts[1]
+            elif " — " in title_text:
+                parts = [pt.strip() for pt in title_text.split(" — ", 1)]
+                title_text, subtitle_text = parts[0], "——" + parts[1]
+
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_before = Pt(4)
-            p.paragraph_format.space_after = Pt(14)
+            p.paragraph_format.space_after = Pt(4 if subtitle_text else 14)
             p.paragraph_format.line_spacing = 1.25
-            set_paragraph_border(p, bottom={"val": "single", "sz": 12, "space": 8, "color": "1E3A8A"})
+            if not subtitle_text:
+                set_paragraph_border(p, bottom={"val": "single", "sz": 12, "space": 8, "color": "1E3A8A"})
             r = p.add_run(title_text)
             set_east_asian_font(r, "Times New Roman", "黑体")
             r.font.size = Pt(17)
             r.bold = True
             r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)
+
+            if subtitle_text:
+                if not subtitle_text.startswith("——"):
+                    subtitle_text = "——" + subtitle_text.lstrip("—- ")
+                sp = doc.add_paragraph()
+                sp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                sp.paragraph_format.space_before = Pt(0)
+                sp.paragraph_format.space_after = Pt(14)
+                sp.paragraph_format.line_spacing = 1.25
+                set_paragraph_border(sp, bottom={"val": "single", "sz": 12, "space": 8, "color": "1E3A8A"})
+                sr = sp.add_run(subtitle_text)
+                set_east_asian_font(sr, "Times New Roman", "黑体")
+                sr.font.size = Pt(14)
+                sr.bold = True
+                sr.font.color.rgb = RGBColor(0x1E, 0x3A, 0x8A)
+
             i += 1
             continue
 
@@ -932,11 +1133,17 @@ def build_docx(md_path: str, docx_path: str, custom_header: str = None, indent_b
             p.paragraph_format.line_spacing = 1.25
             p.paragraph_format.keep_with_next = True
             set_paragraph_border(p, bottom={"val": "single", "sz": 6, "space": 3, "color": "CBD5E1"})
-            r = p.add_run(h2_text)
-            set_east_asian_font(r, "Times New Roman", "黑体")
-            r.font.size = Pt(13.5)
-            r.bold = True
-            r.font.color.rgb = RGBColor(0x1E, 0x3A, 0x8A)
+            add_rich_text(
+                p,
+                h2_text,
+                omml_map=omml_map,
+                base_size_pt=13.5,
+                east_asian_font="黑体",
+                bold_east_asian_font="黑体",
+                base_color=RGBColor(0x1E, 0x3A, 0x8A),
+                bold_color=RGBColor(0x1E, 0x3A, 0x8A),
+                base_bold=True,
+            )
             i += 1
             continue
 
@@ -947,11 +1154,17 @@ def build_docx(md_path: str, docx_path: str, custom_header: str = None, indent_b
             p.paragraph_format.space_after = Pt(5)
             p.paragraph_format.line_spacing = 1.25
             p.paragraph_format.keep_with_next = True
-            r = p.add_run(h3_text)
-            set_east_asian_font(r, "Times New Roman", "黑体")
-            r.font.size = Pt(11.5)
-            r.bold = True
-            r.font.color.rgb = RGBColor(0x03, 0x69, 0xA1)
+            add_rich_text(
+                p,
+                h3_text,
+                omml_map=omml_map,
+                base_size_pt=11.5,
+                east_asian_font="黑体",
+                bold_east_asian_font="黑体",
+                base_color=RGBColor(0x03, 0x69, 0xA1),
+                bold_color=RGBColor(0x03, 0x69, 0xA1),
+                base_bold=True,
+            )
             i += 1
             continue
 
@@ -967,11 +1180,17 @@ def build_docx(md_path: str, docx_path: str, custom_header: str = None, indent_b
             p.paragraph_format.space_after = Pt(4)
             p.paragraph_format.line_spacing = 1.25
             p.paragraph_format.keep_with_next = True
-            r = p.add_run(h4_text)
-            set_east_asian_font(r, "Times New Roman", "黑体")
-            r.font.size = Pt(10.5)
-            r.bold = True
-            r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)
+            add_rich_text(
+                p,
+                h4_text,
+                omml_map=omml_map,
+                base_size_pt=10.5,
+                east_asian_font="黑体",
+                bold_east_asian_font="黑体",
+                base_color=RGBColor(0x0F, 0x17, 0x2A),
+                bold_color=RGBColor(0x0F, 0x17, 0x2A),
+                base_bold=True,
+            )
             i += 1
             continue
 
@@ -1002,12 +1221,18 @@ def build_docx(md_path: str, docx_path: str, custom_header: str = None, indent_b
             p.paragraph_format.space_after = Pt(4 if is_table_cap else 10)
             if is_table_cap:
                 p.paragraph_format.keep_with_next = True
-            r = p.add_run(cap_text)
-            set_east_asian_font(r, "Times New Roman", "黑体" if is_table_cap else "宋体")
-            r.font.size = Pt(9.8)
-            r.bold = is_table_cap
-            r.italic = not is_table_cap
-            r.font.color.rgb = RGBColor(0x1E, 0x3A, 0x8A) if is_table_cap else RGBColor(0x47, 0x55, 0x69)
+            cap_color = RGBColor(0x1E, 0x3A, 0x8A) if is_table_cap else RGBColor(0x47, 0x55, 0x69)
+            add_rich_text(
+                p,
+                cap_text,
+                omml_map=omml_map,
+                base_size_pt=9.8,
+                east_asian_font="黑体" if is_table_cap else "宋体",
+                bold_east_asian_font="黑体",
+                base_color=cap_color,
+                bold_color=cap_color,
+                base_bold=is_table_cap,
+            )
             i += 1
             continue
 
@@ -1193,6 +1418,20 @@ def build_docx(md_path: str, docx_path: str, custom_header: str = None, indent_b
             base_color=RGBColor(0x1E, 0x29, 0x3B),
         )
         i += 1
+
+    # Final ECMA-376 XSD sequence normalization pass across document, styles, headers, and footers
+    roots_to_normalize = [doc.element, doc.styles.element]
+    for sec in doc.sections:
+        for hf in (sec.header, sec.footer, sec.first_page_header, sec.first_page_footer):
+            if hf is not None and hf._element is not None:
+                roots_to_normalize.append(hf._element)
+    for root_el in roots_to_normalize:
+        for pPr in root_el.findall(f".//{{{W_NS}}}pPr"):
+            _reorder_w_children(pPr, PPR_ORDER)
+        for rPr in root_el.findall(f".//{{{W_NS}}}rPr"):
+            _reorder_w_children(rPr, RPR_ORDER)
+        for tcPr in root_el.findall(f".//{{{W_NS}}}tcPr"):
+            _reorder_w_children(tcPr, TCPR_ORDER)
 
     doc.save(docx_path)
     print(f"📄 [MD-to-DOCX] 已解析: {md_path} (含 {len(omml_map)} 个原生 OMML 公式)")
