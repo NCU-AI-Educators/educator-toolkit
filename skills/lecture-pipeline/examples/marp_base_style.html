@@ -1,0 +1,97 @@
+<style>
+/* --- 布局辅助样式 --- */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.columns pre code {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+}
+ul, ol {
+  padding-inline-start: 25px;
+}
+.columns.ratio-4-6 { grid-template-columns: 4fr 6fr; }
+.columns.ratio-6-4 { grid-template-columns: 6fr 4fr; }
+.columns.ratio-5-5 { grid-template-columns: 5fr 5fr; }
+.tip {
+  background-color: #f0f8ff;
+  border-left: 5px solid #1e90ff;
+  padding: 15px;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+.insight {
+  background-color: #eefcff;
+  border-left: 5px solid #17a2b8;
+  padding: 15px;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+.key-point {
+  background-color: #fffbe6;
+  border-left: 5px solid #ffc107;
+  padding: 15px;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+.tip p, .tip li,
+.insight p, .insight li,
+.key-point p, .key-point li { font-size: inherit !important; }
+p, li { font-size: 26px; }
+.styled-div p, .styled-div li { font-size: inherit !important; }
+h1 { color: #2c3e50; }
+h2 { color: #34495e; }
+
+/* --- 极简转场页样式 --- */
+.divider {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+}
+.divider h1 {
+  font-size: 3.5em !important;
+  color: #fff !important;
+  border-bottom: 2px solid #4CAF50 !important;
+  padding-bottom: 20px !important;
+  margin-bottom: 40px !important;
+}
+.divider h2 {
+  font-size: 1.8em !important;
+  color: #bdc3c7 !important;
+  font-weight: 300 !important;
+}
+</style>
+
+<style scoped>
+h1{
+  color: #F5F5F5;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+}
+h2 {
+  color: #E0E0E0;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+}
+.course-title {
+  position: absolute;
+  top: 60px;
+  left: 80px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 8px 15px;
+  border-radius: 5px;
+  font-size: 22px;
+  font-weight: bold;
+  border-left: 5px solid #4CAF50;
+}
+.presenter-info {
+  position: absolute;
+  bottom: 40px;
+  left: 80px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
+}
+</style>
