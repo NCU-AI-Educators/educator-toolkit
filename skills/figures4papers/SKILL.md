@@ -24,7 +24,7 @@ description: >-
 | :--- | :--- | :--- |
 | **定量实验数据统计图**<br>（柱状图、消融、折线、雷达、热力、帕累托图） | **`figures4papers`（本技能）** | **Python + Matplotlib**；采用 `figsize=(28, 6)` 等双栏超宽画布或紧凑子图网格 + 大字号（`16~24pt`）+ 黑白打印安全纹理（`hatch`）+ 版心字号门禁 |
 | **全场景概念与模型架构框图**<br>（Track A 极简纯 SVG、Track B 880px 教材/报告 `1+N` 卡片图、**Track C 顶刊论文 Figure 1 领域机理对比与多轨模型架构矢量图**） | **`textbook-svg`** | **原生 SVG XML / HTML-to-Pure-SVG**（`svg_tool.py`）；支持 `700~880px` 教材窄画布与顶刊双栏矢量主图（共享学术色板、原生数学公式与 PDF 印刷字号预检） |
-| **软件工程拓扑、API 时序、状态机与网页富交互演进图**<br>（微服务拓扑、Sequence 时序、State 状态流转、Web 交互探索） | **`archify`** | **JSON/Mermaid $\rightarrow$ 交互式 HTML + 出版级 Clean SVG** |
+| **软件工程拓扑、API 时序、状态机与网页富交互演进图**<br>（微服务拓扑、Sequence 时序、State 状态流转、Web 交互探索） | **`archify`** | **JSON/Mermaid → 交互式 HTML + 出版级 Clean SVG** |
 
 ### 2. 应当加载本技能的场景
 - 需要使用 **Python / Matplotlib** 绘制**学术论文（LaTeX / Typst）定量实验插图、答辩幻灯片或技术报告数据图**，且追求顶会出版级排版审美（去顶/右边框 `spines`、纯正学术配色、独立图例画板）；

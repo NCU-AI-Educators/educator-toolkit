@@ -5,14 +5,14 @@ description: 基于 V11 规范执行学术与工程语态校验及 Master 讲义
 
 # Lecture Node 6: 内容净化与五层顺序清理器 (5-Layer Sequential Content Purifier)
 
-作为讲义大流水线与方法论写作的 **Node 6 核心净化节点**，本技能用于对 `*.ssot.md` 教材母稿执行 V11 学术语态清洗，并对包含可视区与隐藏注释舱的 **`*.master.md`（或 `*.final.md`）按固定五步顺序依次清理【幻灯片正文 $\rightarrow$ 逐字稿 $\rightarrow$ 对白 $\rightarrow$ 自学解释 $\rightarrow$ 教学设计】**，彻底杜绝“只洗幻灯片表面正文、漏洗底部四大 HTML 注释块”的常见遗漏。
+作为讲义大流水线与方法论写作的 **Node 6 核心净化节点**，本技能用于对 `*.ssot.md` 教材母稿执行 V11 学术语态清洗，并对包含可视区与隐藏注释舱的 **`*.master.md`（或 `*.final.md`）按固定五步顺序依次清理【幻灯片正文 → 逐字稿 → 对白 → 自学解释 → 教学设计】**，彻底杜绝“只洗幻灯片表面正文、漏洗底部四大 HTML 注释块”的常见遗漏。
 
 ---
 
 ## 一、 核心净化原则与红线 (Core Principles & Safety Rules)
 
 1. **五层逐一过筛，严禁跳步或只洗表面**：
-   - 面对 `*.master.md` 时，必须严格按照 **Pass 1（幻灯片正文）$\rightarrow$ Pass 2（逐字稿）$\rightarrow$ Pass 3（对白）$\rightarrow$ Pass 4（自学解释）$\rightarrow$ Pass 5（教学设计）** 的顺序分轮次清理，每一轮只聚焦当前层的语态规范与结构红线。
+   - 面对 `*.master.md` 时，必须严格按照 **Pass 1（幻灯片正文） → Pass 2（逐字稿） → Pass 3（对白） → Pass 4（自学解释） → Pass 5（教学设计）** 的顺序分轮次清理，每一轮只聚焦当前层的语态规范与结构红线。
 2. **客观理性，拒绝抒情与自嗨**：
    - 彻底剔除文学化、情绪化、营销号式的夸张形容词与副词；
    - 以第一性原理、严密逻辑因果与客观实验数据作为唯一的论证载体。
@@ -53,7 +53,7 @@ description: 基于 V11 规范执行学术与工程语态校验及 Master 讲义
 
 ## 三、 五层顺序清理标准工作流 (Sequential 5-Pass Workflow)
 
-当对 `<讲次>.master.md` 执行清理时，首先运行五层分步诊断脚本掌握全书违例分布，然后**严格按 Pass 1 $\rightarrow$ Pass 5 依次清理**：
+当对 `<讲次>.master.md` 执行清理时，首先运行五层分步诊断脚本掌握全书违例分布，然后**严格按 Pass 1 → Pass 5 依次清理**：
 
 ```bash
 # 1. 全量五层只读诊断（查看 Pass 1 ~ Pass 5 每层每页的具体违例项）

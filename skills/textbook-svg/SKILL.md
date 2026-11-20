@@ -8,18 +8,18 @@ description: >-
 
 ## Overview
 
-`textbook-svg` 专为 **高校纸质/电子教材（SSOT Markdown $\rightarrow$ Typst PDF / Word DOCX）、深度工程研究报告及顶会顶刊学术论文（LaTeX PDF）** 打造。针对从“单一概念示意”、“超复杂多层系统报告”到“顶刊论文机制与模型架构图（Figure 1 / Figure 2）”的不同出版介质需求，提供 **三轨制（Tri-Track）绘图与印刷门禁引擎**：
+`textbook-svg` 专为 **高校纸质/电子教材（SSOT Markdown → Typst PDF / Word DOCX）、深度工程研究报告及顶会顶刊学术论文（LaTeX PDF）** 打造。针对从“单一概念示意”、“超复杂多层系统报告”到“顶刊论文机制与模型架构图（Figure 1 / Figure 2）”的不同出版介质需求，提供 **三轨制（Tri-Track）绘图与印刷门禁引擎**：
 
 1. **Track A：轻量极简纯 SVG 概念图（`700px～760px` 原生 `.svg`）**
    - **适用场景**：单概念模型、3～4 节点流程或对比，每张卡片仅需 3～4 条精炼短语（`• 四字粗体锚点 | 8~12字释义`）；
    - **核心优势**：60～95 行纯正原生 SVG XML（4～7 KB），零外部渲染依赖，内置 `lint` 门禁自动拦截乱码字符与文字超框。
-2. **Track B：高信息密度“1+N 总分架构图组”（`880px` 黄金窄画布 HTML/CSS $\rightarrow$ 同时输出 `2x Retina .png` + `纯正原生 .svg`）**
+2. **Track B：高信息密度“1+N 总分架构图组”（`880px` 黄金窄画布 HTML/CSS → 同时输出 `2x Retina .png` + `纯正原生 .svg`）**
    - **适用场景**：多层复合系统架构（如 `Tier 1~Tier 4` 端云协同）、包含完整技术机制长句（单条 >20 字）、跨项目/多团队落地分流矩阵（如 `1+1+N` 10 队裂变）；
    - **核心优势**：
      - **HTML/CSS 排版爽快感 + 纯正原生 `.svg` 矢量输出**：内置 `DOM-to-Pure-SVG` 矢量编译引擎，在无头浏览器中读取 Flexbox/Grid 自动排版与 `Range.getClientRects()` 逐行折行坐标后，直接编译生成 **100% 纯正的 `<svg>` 矢量图（由原生 `<rect>`、`<line>`、`<linearGradient>`、`<clipPath>` 与 `<text>` 构成，不含 `<foreignObject>`）**，同时自动净化 Emoji 乱码并通过 `lint` 印刷安全门禁，且同步输出 `2x Retina .png`；
      - **严防缩印字小（`880px` 黄金窄画布）**：画布宽度严格锁定 `880px`（与 Markdown/A4 正文版心接近 1:1），配合 `13.5px～19.5px` 大字号层级，彻底根治宽画布（`1300px+`）塞入文档后字号被缩成 `6px` 蚂蚁字的痛点；
      - **“1 张全景总图 + N 张专题子图”解耦范式**：拒绝将过多层级硬塞进单张超长图，通过 1 张总图建立骨架与子图导航索引（`详见图 Xa/Xb/Xc`），配合 3 类大字号专题子图随文就近嵌入。
-3. **Track C：顶会顶刊学术论文机制原理图与模型架构图（`Python + Matplotlib` 矢量几何图元 $\rightarrow$ `Type 42 .pdf` + `.svg` + `320 DPI .png`）**
+3. **Track C：顶会顶刊学术论文机制原理图与模型架构图（`Python + Matplotlib` 矢量几何图元 → `Type 42 .pdf` + `.svg` + `320 DPI .png`）**
    - **适用场景**：英文/中文学术论文（*Nature Machine Intelligence*、*Nature Communications*、*IEEE*、*CVPR/ICML/NeurIPS*、*arXiv*）的 `Figure 1`（领域痛点机制对比 + 物理/生物几何先验示意）与 `Figure 2`（双轨神经网络、可微物理算子、状态寄存器、`sg(·)` 梯度隔离与正交流形架构图）；
    - **核心优势**：
      - **与 `figures4papers` 100% 视觉同源**：共享完全一致的 12 色学术语义色板（`#0F4D92` 耶鲁深蓝主模型、`#2A8C82` 青绿算子/寄存器、`#B64342` 深红基线痛点、`#D49A35` 琥珀金梯度门控）、`Helvetica` 无衬线字体族、无衬线数学公式（`mathtext.fontset="dejavusans"`）及小写粗体面板标号（`a`, `b`），确保论文中定性架构图与定量实验图浑然一体；
@@ -115,7 +115,7 @@ uv run ~/.gemini/config/skills/textbook-svg/scripts/paper_schematic_tool.py pref
 | :---: | :--- | :---: | :--- |
 | **`html-overview`** | **总图 (`Fig X`)：全景多层架构与子图索引** | `width: 880px`<br>*(高约 `950~1150px`)* | **建立全局骨架**：纵向排布 3～4 个语义色带层级（`Tier 1~Tier 4`），每层内部采用等宽 3 栏摘要卡片（仅保留标题 + 2 行核心词 + **`详见图 Xa/Xb/Xc` 导航角标**），层间配胶囊流向条（`flow-bar`）。**嵌入在架构总论开篇处**。 |
 | **`html-stack`** | **子图① (`Fig Xa`)：上下游深度堆叠与双向桥接** | `width: 880px`<br>*(高约 `900~1050px`)* | **深度展开核心算法/算力层**：上下两大面板（如 `System 2 云端慢思考` vs `System 1 端侧快思考`），内部采用 **全宽纵向富文本卡片栈（`card-stack`）**，右上角配赋能范围徽章，中间设双栏虚线桥接区（`模型下行 / 数据上行`）。**嵌入在端云算力表格之后**。 |
-| **`html-primitives`** | **子图② (`Fig Xb`)：编号工程原语 + 2×2 物理矩阵** | `width: 880px`<br>*(高约 `900~1020px`)* | **深度展开底层物理/硬件防线**：上半部采用琥珀色 **带大号数字徽章（`1/2/3`）的全宽原语卡片**（痛点 $\rightarrow$ 机制 $\rightarrow$ 量化指标），下半部采用岩石灰 **`2×2` 网格卡片** 展示 4 类硬件外设或算力卸载方案。**嵌入在工程原语小节末尾**。 |
+| **`html-primitives`** | **子图② (`Fig Xb`)：编号工程原语 + 2×2 物理矩阵** | `width: 880px`<br>*(高约 `900~1020px`)* | **深度展开底层物理/硬件防线**：上半部采用琥珀色 **带大号数字徽章（`1/2/3`）的全宽原语卡片**（痛点 → 机制 → 量化指标），下半部采用岩石灰 **`2×2` 网格卡片** 展示 4 类硬件外设或算力卸载方案。**嵌入在工程原语小节末尾**。 |
 | **`html-matrix`** | **子图③ (`Fig Xc`)：多通道分流与交付物矩阵** | `width: 880px`<br>*(高约 `900~1050px`)* | **深度展开多课题/多团队落地映射**：按通道/赛道（`通道一 / 通道二 / 通道三`）分组，内部采用双栏或 `1+3` 卡片网格，每张卡片含 **单元名称 + 右侧负责人徽章 + 课题简介 + 底部带左边框高亮的独立交付物栏（`team-deliver`）**。**嵌入在项目/团队分流章节末尾**。 |
 | **`html-infographic`** | **数据信息图：KPI 核心指标看板 + 定量阶梯条形图** | `width: 880px`<br>*(高约 `480~560px`)* | **宏观规模与定量漏斗阶梯融合展示**：顶部采用 4 栏大数字 KPI 指标卡（`25px` 粗体数字 + 焦点卡片高亮描边），底部采用带比例背景轨道、圆角彩色柱体、数值占比标签与坐标轴刻度的水平阶梯条形图，无需 `<canvas>` 即可直出纯正矢量 `.svg` 与 `2x .png`。 |
 
@@ -126,7 +126,7 @@ uv run ~/.gemini/config/skills/textbook-svg/scripts/paper_schematic_tool.py pref
 | 构图骨架 (`--layout`) | 典型期刊栏宽 ($W_{\text{target}}$) | 推荐画布 ($W_{\text{fig}}\times H_{\text{fig}}$) | 适用论文图表场景与结构特征 |
 | :---: | :---: | :---: | :--- |
 | **`dual-panel`** | `7.20 in` (*Nature* 双栏)<br>`6.37 in` (*arXiv* A4)<br>`6.875 in` (*CVPR* 双栏) | `14.0 × 7.2 in` | **论文开篇 `Figure 1` 黄金范式**：左侧面板 **`a`** 上下对比传统基线结构瓶颈（深红 `#B64342`）与本工作领域物理/几何先验（耶鲁蓝 `#0F4D92`）；右侧面板 **`b`** 展开双轨/多阶段主干架构、寄存器总线、白桥正交跳线与底部纯语义图例。 |
-| **`multi-stage`** | `7.20 in` / `7.16 in` (*IEEE*) / `3.50 in` (单栏) | `14.0 × 7.2 in`<br>*(单栏 `7.0 × 4.6 in`)* | **方法章节 `Figure 2` 算子流水线**：按 **`a` $\rightarrow$ `b` $\rightarrow$ `c`** 三阶段横向解耦“物理特征分解 $\rightarrow$ 受约束注意力/可微算子瓶颈 $\rightarrow$ 梯度隔离与正交流形预测头”。 |
+| **`multi-stage`** | `7.20 in` / `7.16 in` (*IEEE*) / `3.50 in` (单栏) | `14.0 × 7.2 in`<br>*(单栏 `7.0 × 4.6 in`)* | **方法章节 `Figure 2` 算子流水线**：按 **`a` → `b` → `c`** 三阶段横向解耦“物理特征分解 → 受约束注意力/可微算子瓶颈 → 梯度隔离与正交流形预测头”。 |
 
 - **反向字号硬性公式**：画布源字号必须满足 $f_{\text{src}} \ge f_{\text{print,min}} / (W_{\text{target}} / W_{\text{fig}})$（例如 `13.9 in` 画布缩印至 `6.37 in` arXiv 版心时缩放比为 `0.458`，源最小字号 `12.5 pt` 对应印刷 `5.7 pt`；若要求印刷 $\ge 6.0\text{ pt}$，源最小字号须 $\ge 13.5\text{ pt}$）。
 
@@ -192,7 +192,7 @@ uv run ~/.gemini/config/skills/textbook-svg/scripts/svg_tool.py render-html \
   [--scale 2] [--max-width 900] [--min-font 12] \
   --output /tmp/html_render_report.json
 ```
-自动完成 `.html` $\rightarrow$ 同名高清 `.png` 与纯正原生 `.svg` 转换，并在无头浏览器中实时执行三项门禁：
+自动完成 `.html` → 同名高清 `.png` 与纯正原生 `.svg` 转换，并在无头浏览器中实时执行三项门禁：
 1. **画布宽度防缩印门禁（`canvas_too_wide`）**：若画布宽度超过 `--max-width`（默认 `900px`，推荐 `880px`），立即预警或报错，防止宽图缩印导致字小；
 2. **DOM 最小字号门禁（`font_too_small`）**：遍历所有可见文本节点，拦截计算字号 `< 12px` 的微缩文字；
 3. **零水平溢出门禁（`horizontal_overflow`）**：检测所有卡片与容器是否存在 `scrollWidth > clientWidth` 截断。
@@ -236,9 +236,9 @@ uv run ~/.gemini/config/skills/textbook-svg/scripts/paper_schematic_tool.py pref
 ## Workflow
 
 1. **评估目标出版载体并选定轨道**：
-   - **单一概念/四象限/简单对比（节点 $\le 4$、短语 $\le 15$ 字）** $\rightarrow$ 进入 **Track A（纯 SVG）**；
-   - **多层复杂系统报告、含长句机制说明或多团队/多模块分流矩阵** $\rightarrow$ 进入 **Track B（`880px` 高密度 `1+N` 图组）**；
-   - **SCI/顶会论文机制原理图与网络/物理架构图（LaTeX `Figure 1` / `Figure 2`）** $\rightarrow$ 先阅读 [`references/track_c_paper_schematics.md`](./references/track_c_paper_schematics.md)，进入 **Track C（Matplotlib Vector PDF/SVG）**。
+   - **单一概念/四象限/简单对比（节点 $\le 4$、短语 $\le 15$ 字）** → 进入 **Track A（纯 SVG）**；
+   - **多层复杂系统报告、含长句机制说明或多团队/多模块分流矩阵** → 进入 **Track B（`880px` 高密度 `1+N` 图组）**；
+   - **SCI/顶会论文机制原理图与网络/物理架构图（LaTeX `Figure 1` / `Figure 2`）** → 先阅读 [`references/track_c_paper_schematics.md`](./references/track_c_paper_schematics.md)，进入 **Track C（Matplotlib Vector PDF/SVG）**。
 2. **生成母版骨架并填入精炼内容**：
    - Track A：调用 `svg_tool.py scaffold --archetype {pillars,matrix,branch,contrast}` 生成 `.svg`；
    - Track B：按 **“1 张全景总图（`html-overview`）+ N 张专题子图（`html-stack` / `html-primitives` / `html-matrix` / `html-infographic`）”** 规划图组；**图内标题、徽章与子图索引一律使用纯语义名称（如 `主体赛专题`、`端云算力专题子图`），绝不写入 `图 1`、`子图 2a` 等编号**；

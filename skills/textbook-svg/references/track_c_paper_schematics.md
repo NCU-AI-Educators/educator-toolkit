@@ -20,7 +20,7 @@ $$f_{\text{src}} \ge \frac{f_{\text{print,min}}}{W_{\text{target}} / W_{\text{fi
 | `nature_double` | Nature / NMI full width (`183 mm`) | `7.20` | `14.0` | `0.514` | **`12.1 pt`** |
 | `ieee_double` | IEEE Trans. double column | `7.16` | `14.0` | `0.511` | **`12.1 pt`** |
 | `cvpr_double` | CVPR / ICCV / ECCV `\textwidth` | `6.875` | `14.0` | `0.491` | **`12.6 pt`** |
-| `arxiv_a4` | Standard LaTeX `article` / arXiv | `6.37` | `13.9` | `0.458` | **`13.5 pt`** (`12.5 pt` $\to$ `5.7 pt`) |
+| `arxiv_a4` | Standard LaTeX `article` / arXiv | `6.37` | `13.9` | `0.458` | **`13.5 pt`** (`12.5 pt` → `5.7 pt`) |
 | `nature_single` | Nature single column (`89 mm`) | `3.50` | `7.0` | `0.500` | **`12.4 pt`** |
 
 ### Recommended 5-Tier Font Hierarchy (`compute_font_budget`)
